@@ -1,26 +1,103 @@
+/* -----------------------------------------------------------
+   Tailwind Import
+   ----------------------------------------------------------- */
 @import "tailwindcss";
 
+/* -----------------------------------------------------------
+   Global Theme Variables (Dark UI)
+   ----------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-bg: #121212;
+  /* main background */
+  --color-surface: #1E1E1E;
+  /* card background */
+  --color-surface-light: #2A2A2A;
+  /* input background */
+  --color-text: #E5E5E5;
+  /* main text */
+  --color-text-muted: #A1A1A1;
+  /* secondary text */
+  --color-accent: #4A3AFF;
+  /* ShahebBazar accent */
+  --color-accent-dark: #372ACC;
+  /* accent hover */
+  --color-border: #3A3A3A;
+  /* subtle borders */
+  --color-success-bg: #16301F;
+  /* success background */
+  --color-success-text: #7DDB9B;
+  /* success text */
+  --color-error-bg: #301616;
+  /* error background */
+  --color-error-text: #DB7D7D;
+  /* error text */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* -----------------------------------------------------------
+   Global Body Styles
+   ----------------------------------------------------------- */
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* -----------------------------------------------------------
+   Reusable UI Components
+   ----------------------------------------------------------- */
+
+/* Form container card */
+.form-card {
+  @apply p-8 rounded-xl shadow-lg border;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+/* Form input fields */
+.form-input {
+  @apply p-3 rounded-md outline-none transition w-full;
+  background: var(--color-surface-light);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.form-input:focus {
+  background: var(--color-surface);
+  border-color: var(--color-accent);
+}
+
+/* Primary action button */
+.form-button-primary {
+  @apply p-3 rounded-md font-medium transition w-full text-center;
+  background: var(--color-accent);
+  color: white;
+}
+
+.form-button-primary:hover {
+  background: var(--color-accent-dark);
+}
+
+/* Form title */
+.form-title {
+  @apply text-2xl font-semibold mb-6 text-center;
+  color: var(--color-accent);
+}
+
+/* Success message */
+.form-status-success {
+  @apply p-3 rounded-md mb-4 text-sm;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+/* Error message */
+.form-status-error {
+  @apply p-3 rounded-md mb-4 text-sm;
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+/* Page wrapper for centered content */
+.page-center {
+  @apply max-w-md mx-auto mt-10;
 }
