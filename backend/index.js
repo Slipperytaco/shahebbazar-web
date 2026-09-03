@@ -3,10 +3,12 @@ const cors = require('cors');
 const pool = require('./db');
 const app = express();
 const vendorsRouter = require('./routes/vendors');
+const vendorListingsRouter = require('./routes/vendorListings');
 
 app.use(cors());
 app.use(express.json());
 app.use('/api/vendors', vendorsRouter);
+app.use('/api', vendorListingsRouter);
 
 app.get('/', async (req, res) => {
     const result = await pool.query('SELECT NOW()');

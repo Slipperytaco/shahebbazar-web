@@ -32,7 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
             <div className="flex gap-6 text-sm">
               <a href="/" className="hover:opacity-80">Home</a>
-              <a href="/vendors/register" className="hover:opacity-80">Register</a>
+              <a href="/vendors/register" className="hover:opacity-80">Vendor Sign Up</a>
+              <a href="/vendors/dashboard" className="hover:opacity-80">Vendor Dashboard</a>
+              <a href="/vendors/dashboard/add-listing" className="hover:opacity-80">Add Listing</a>
               <a href="/vendors" className="hover:opacity-80">Vendors</a>
               <a href="/search" className="hover:opacity-80">Search</a>
             </div>
