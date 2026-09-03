@@ -30,6 +30,7 @@ export default function VendorRegister() {
         });
 
         const data = await res.json();
+        console.log("API Response:", data);
         // log response in console + return error msg or success msg based off API response 
         console.log("Vendor created:", data);
 
@@ -40,79 +41,33 @@ export default function VendorRegister() {
         }
 
     };
-    // determine status class for styling based on success or error
-    const statusClass =
-        status?.type === "success"
-            ? "form-status-success"
-            : "form-status-error";
+    let statusClass = "";
+    if (status?.type === "success") statusClass = "form-status-success";
+    if (status?.type === "error") statusClass = "form-status-error";
 
     return (
-        <div className="page-center">
-
-            {/* Registration Card */}
+        <div className="max-w-md mx-auto mt-10">
             <div className="form-card">
-
                 <h2 className="form-title">Vendor Registration</h2>
-
-                {/* Status Message */}
                 {status && (
                     <div className={statusClass}>
                         {status.message}
                     </div>
                 )}
+                <div className="flex flex-col gap-4">
+                    <form onSubmit={handleSubmit}>
+                        <input name="vendor_name" placeholder="BusinessName" onChange={handleChange} className="form-input" />
+                        <input name="vendor_email" placeholder="Email" onChange={handleChange} className="form-input" />
+                        <input name="vendor_password" placeholder="Password" onChange={handleChange} className="form-input" />
+                        <input name="vendor_phone" placeholder="Phone" onChange={handleChange} className="form-input" />
+                        <input name="vendor_address" placeholder="Address" onChange={handleChange} className="form-input" />
+                        <input name="vendor_city" placeholder="City" onChange={handleChange} className="form-input" />
+                        <button type="submit" className="form-button-primary">
+                            Register Vendor
+                        </button>
+                    </form>
+                </div>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-
-                    <input
-                        name="vendor_name"
-                        placeholder="Vendor Name"
-                        onChange={handleChange}
-                        className="form-input"
-                    />
-
-                    <input
-                        name="vendor_email"
-                        placeholder="Email"
-                        type="email"
-                        onChange={handleChange}
-                        className="form-input"
-                    />
-
-                    <input
-                        name="vendor_password"
-                        placeholder="Password"
-                        type="password"
-                        onChange={handleChange}
-                        className="form-input"
-                    />
-
-                    <input
-                        name="vendor_phone"
-                        placeholder="Phone"
-                        onChange={handleChange}
-                        className="form-input"
-                    />
-
-                    <input
-                        name="vendor_address"
-                        placeholder="Address"
-                        onChange={handleChange}
-                        className="form-input"
-                    />
-
-                    <input
-                        name="vendor_city"
-                        placeholder="City"
-                        onChange={handleChange}
-                        className="form-input"
-                    />
-
-                    <button type="submit" className="form-button-primary">
-                        Register Vendor
-                    </button>
-
-                </form>
             </div>
         </div>
     );

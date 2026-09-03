@@ -11,7 +11,6 @@ router.get('/', async (req, res) => {
     }
 });
 
-module.exports = router;
 
 // this route handles vendor registration , handling details from front end and inserts them into DB 
 router.post('/', async (req, res) => {
@@ -45,3 +44,5 @@ router.post('/', async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
+
+module.exports = router;
