@@ -17,7 +17,6 @@ router.post('/', async (req, res) => {
     const {
         vendor_name,
         vendor_email,
-        vendor_password,
         vendor_phone,
         vendor_address,
         vendor_city
@@ -26,13 +25,12 @@ router.post('/', async (req, res) => {
     try {
         const result = await pool.query(
             `INSERT INTO vendors 
-      (vendor_name, vendor_email, vendor_password, vendor_phone, vendor_address, vendor_city)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      (vendor_name, vendor_email, vendor_phone, vendor_address, vendor_city)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *`,
             [
                 vendor_name,
                 vendor_email,
-                vendor_password,
                 vendor_phone,
                 vendor_address,
                 vendor_city

@@ -37,6 +37,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <a href="/vendors/dashboard/add-listing" className="hover:opacity-80">Add Listing</a>
               <a href="/vendors" className="hover:opacity-80">Vendors</a>
               <a href="/search" className="hover:opacity-80">Search</a>
+              <a href="/login" className="hover:opacity-80">Login</a>
+              <a href="/register" className="hover:opacity-80">User Register</a>
             </div>
           </div>
         </nav>

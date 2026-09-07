@@ -58,7 +58,7 @@ export default function VendorRegister() {
                     <form onSubmit={handleSubmit}>
                         <input name="vendor_name" placeholder="BusinessName" onChange={handleChange} className="form-input" />
                         <input name="vendor_email" placeholder="Email" onChange={handleChange} className="form-input" />
-                        <input name="vendor_password" placeholder="Password" onChange={handleChange} className="form-input" />
+
                         <input name="vendor_phone" placeholder="Phone" onChange={handleChange} className="form-input" />
                         <input name="vendor_address" placeholder="Address" onChange={handleChange} className="form-input" />
                         <input name="vendor_city" placeholder="City" onChange={handleChange} className="form-input" />
