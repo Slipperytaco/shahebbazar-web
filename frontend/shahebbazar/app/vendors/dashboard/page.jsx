@@ -14,11 +14,11 @@ export default function VendorDashboard() {
         async function loadVendors() {
             const res = await fetch("http://localhost:4000/api/vendors");
             const data = await res.json();
-            setVendors(data);
+            setVendors(data.vendors);
 
             // Auto-select the first vendor for now
-            if (data.length > 0) {
-                setSelectedVendor(data[0]);
+            if (data.vendors.length > 0) {
+                setSelectedVendor(data.vendors[0]);
             }
         }
         loadVendors();

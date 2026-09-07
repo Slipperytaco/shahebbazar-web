@@ -5,9 +5,33 @@ const router = express.Router();
 router.get('/', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM vendors');
-        res.json(result.rows);
+
+        res.json({
+            success: true,
+            vendors: result.rows
+        });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+router.get('/search', async (req, res) => {
+    const q = req.query.q;
+
+    try {
+        const result = await pool.query(
+            `SELECT * FROM vendors 
+             WHERE vendor_name ILIKE $1 
+             OR vendor_city ILIKE $1`,
+            [`%${q}%`]
+        );
+
+        res.json({
+            success: true,
+            vendors: result.rows
+        });
+
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 

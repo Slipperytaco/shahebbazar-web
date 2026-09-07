@@ -26,8 +26,11 @@ export default function Login() {
 
         if (data.success) {
             localStorage.setItem("user", JSON.stringify(data.user));
-
             setStatus({ type: "success", message: "Logged in successfully" });
+            // Redirect
+            setTimeout(() => {
+                window.location.href = "/dashboard";
+            }, 500);
         } else {
             setStatus({ type: "error", message: data.error });
         }

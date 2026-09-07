@@ -56,7 +56,7 @@ export default function VendorRegister() {
                 )}
                 <div className="flex flex-col gap-4">
                     <form onSubmit={handleSubmit}>
-                        <input name="vendor_name" placeholder="BusinessName" onChange={handleChange} className="form-input" />
+                        <input name="vendor_name" placeholder="Business Name" onChange={handleChange} className="form-input" />
                         <input name="vendor_email" placeholder="Email" onChange={handleChange} className="form-input" />
 
                         <input name="vendor_phone" placeholder="Phone" onChange={handleChange} className="form-input" />
