@@ -33,3 +33,19 @@ CREATE TABLE users (
     user_password_hash VARCHAR(255) NOT NULL,
     user_created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE vendor_listings (
+  listing_id SERIAL PRIMARY KEY,
+  vendor_id INTEGER REFERENCES vendors(vendor_id),
+  title TEXT NOT NULL,
+  description TEXT,
+  price NUMERIC(10,2),
+  category TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE listing_photos (
+  photo_id SERIAL PRIMARY KEY,
+  listing_id INTEGER REFERENCES vendor_listings(listing_id),
+  photo_url TEXT NOT NULL
+);
