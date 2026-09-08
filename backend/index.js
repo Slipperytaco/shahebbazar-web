@@ -11,10 +11,13 @@ app.use(express.json());   // ⭐ FIXED — JSON BODY PARSER ENABLED
 const vendorsRouter = require('./routes/vendors');
 const vendorListingsRouter = require('./routes/vendorListings');
 const authRoutes = require("./routes/auth");
+const listingsRouter = require("./routes/listings");
 
 app.use("/api/auth", authRoutes);
 app.use('/api/vendors', vendorsRouter);
 app.use('/api', vendorListingsRouter);
+app.use("/api/listings", listingsRouter);
+app.use("/uploads", express.static("uploads"));
 
 app.get('/', async (req, res) => {
     const result = await pool.query('SELECT NOW()');

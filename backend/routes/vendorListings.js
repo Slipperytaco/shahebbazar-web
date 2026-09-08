@@ -77,12 +77,16 @@ router.post(
             const photoFiles = req.files;
 
             for (const file of photoFiles) {
+                const filename = file.filename; // multer gives this
+                const photoUrl = `${process.env.BASE_URL}/uploads/${filename}`;
+
                 await pool.query(
                     `INSERT INTO listing_photos (listing_id, photo_url)
-                     VALUES ($1, $2)`,
-                    [listingId, file.path]
+                    VALUES ($1, $2)`,
+                    [listingId, photoUrl]
                 );
             }
+
 
             res.json({ success: true, message: "Photos uploaded" });
         } catch (err) {

@@ -58,14 +58,16 @@ export default function VendorListings({ vendorId, refresh }) {
 
                         <div className="flex gap-3 mt-3">
                             <a
-                                href={`/vendors/listings/${listing.listing_id}`}
+                                //href={`/vendors/listings/${listing.listing_id}`}
+                                href={`/listings/${listing.listing_id}`}
                                 className="form-button-primary text-center"
                             >
                                 View
                             </a>
 
                             <a
-                                href={`/vendors/listings/${listing.listing_id}/edit`}
+                                //href={`/vendors/listings/${listing.listing_id}/edit`}
+                                href={`/listings/${listing.listing_id}/edit`}
                                 className="form-button-secondary text-center"
                             >
                                 Edit
