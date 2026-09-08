@@ -10,13 +10,14 @@ CREATE TABLE categories (
 CREATE TABLE vendors (
     vendor_id SERIAL PRIMARY KEY,
     vendor_name VARCHAR(255) NOT NULL,
-    vendor_email VARCHAR(255) NOT NULL UNIQUE,
-    vendor_password VARCHAR(255) NOT NULL,
-    vendor_phone VARCHAR(20),
+    vendor_phone VARCHAR(20) NOT NULL,
     vendor_address TEXT,
+	vendor_email TEXT,
     vendor_city VARCHAR(255),
-    vendor_created_at TIMESTAMP DEFAULT NOW()
+    vendor_created_at TIMESTAMP DEFAULT NOW(),
+    user_id INT REFERENCES users(user_id)
 );
+
 
 -- vendor <---> category many to many relationship
 CREATE TABLE vendor_categories (
