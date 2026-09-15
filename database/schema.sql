@@ -61,12 +61,25 @@ CREATE TABLE vendor_categories (
 
 CREATE TABLE inquiries (
     inquiry_id SERIAL PRIMARY KEY,
-    vendor_id INTEGER NOT NULL,
-    listing_id INTEGER,
+    vendor_id INTEGER NOT NULL REFERENCES vendors(vendor_id),
+    listing_id INTEGER REFERENCES vendor_listings(listing_id),
+    
+    inquiry_type TEXT DEFAULT 'general',   -- general | product | category | listing
+    product_id INTEGER REFERENCES vendor_products(product_id),
+    category_id INTEGER REFERENCES categories(category_id),
+
     customer_name TEXT,
     customer_email TEXT,
     message TEXT NOT NULL,
+
     status TEXT DEFAULT 'new',
     vendor_response TEXT,
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+
+CREATE TABLE vendor_products (
+    product_id SERIAL PRIMARY KEY,
+    vendor_id INT REFERENCES vendors(vendor_id) ON DELETE CASCADE,
+    product_name TEXT NOT NULL
 );
