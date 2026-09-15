@@ -58,3 +58,15 @@ CREATE TABLE vendor_categories (
     category_id INT REFERENCES categories(category_id) ON DELETE CASCADE,
     PRIMARY KEY (vendor_id, category_id)
 );
+
+CREATE TABLE inquiries (
+    inquiry_id SERIAL PRIMARY KEY,
+    vendor_id INTEGER NOT NULL,
+    listing_id INTEGER,
+    customer_name TEXT,
+    customer_email TEXT,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'new',
+    vendor_response TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);

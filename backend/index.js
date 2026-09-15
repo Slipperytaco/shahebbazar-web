@@ -5,18 +5,20 @@ const app = express();
 
 
 app.use(cors());
-app.use(express.json());   // ⭐ FIXED — JSON BODY PARSER ENABLED
+app.use(express.json());  
 
 
 const vendorsRouter = require('./routes/vendors');
 const vendorListingsRouter = require('./routes/vendorListings');
 const authRoutes = require("./routes/auth");
 const listingsRouter = require("./routes/listings");
+const inquiriesRouter = require("./routes/inquiries");
 
 app.use("/api/auth", authRoutes);
 app.use('/api/vendors', vendorsRouter);
 app.use('/api', vendorListingsRouter);
 app.use("/api/listings", listingsRouter);
+app.use("/api", inquiriesRouter);
 app.use("/uploads", express.static("uploads"));
 
 app.get('/', async (req, res) => {

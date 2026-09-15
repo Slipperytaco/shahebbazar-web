@@ -90,6 +90,13 @@ export default function VendorDashboard() {
                     >
                         Search Vendors
                     </a>
+                    <a 
+                        href="/vendors/dashboard/inquiries" 
+                        className="form-button-primary text-center"
+                    >
+                        View Inquiries
+                    </a>
+
                 </div>
                 {/* Add Listing Form */}
 
