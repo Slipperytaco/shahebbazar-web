@@ -52,10 +52,19 @@ export default function VendorListings({ vendorId, refresh }) {
                         key={listing.listing_id}
                         className="p-4 bg-neutral-900 border border-neutral-700 rounded-md"
                     >
+                            {listing.preview_photo && (
+                                <img 
+                                    src={listing.preview_photo}
+                                    className="w-full h-40 object-cover rounded-md mb-3"
+                                    alt="Listing preview"
+                                />
+                            )}
+
                         <h4 className="text-md font-semibold">{listing.title}</h4>
                         <p className="text-gray-400">${listing.price}</p>
-                        <p className="text-gray-400">{listing.category}</p>
-
+                        <p className="text-gray-400">{listing.category_name}</p>
+                        <p className="text-gray-400">{listing.inquiry_count} inquiries</p>
+                        
                         <div className="flex gap-3 mt-3">
                             <a
                                 //href={`/vendors/listings/${listing.listing_id}`}

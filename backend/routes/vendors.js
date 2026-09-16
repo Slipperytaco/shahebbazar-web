@@ -67,4 +67,17 @@ router.post('/', async (req, res) => {
     }
 });
 
+// get categories for a vendor: 
+router.get("/categories", async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT * FROM categories ORDER BY category_id ASC"
+        );
+        res.json({ categories: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+
 module.exports = router;

@@ -38,6 +38,7 @@ CREATE TABLE users (
 
 CREATE TABLE vendor_listings (
     listing_id SERIAL PRIMARY KEY,
+    category_id INTEGER REFERENCES categories(category_id),
     vendor_id INT REFERENCES vendors(vendor_id),
     title TEXT NOT NULL,
     description TEXT,
@@ -83,3 +84,12 @@ CREATE TABLE vendor_products (
     vendor_id INT REFERENCES vendors(vendor_id) ON DELETE CASCADE,
     product_name TEXT NOT NULL
 );
+
+INSERT INTO categories (category_name) VALUES
+('Silk & Textiles'),
+('Handicrafts & Gifts'),
+('Agro-Supplies & Inputs'),
+('Machinery & Local Manufacturing'),
+('Food & Agro Products'),
+('Retail & Wholesale'),
+('Services');

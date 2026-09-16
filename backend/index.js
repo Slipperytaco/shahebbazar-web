@@ -13,12 +13,14 @@ const vendorListingsRouter = require('./routes/vendorListings');
 const authRoutes = require("./routes/auth");
 const listingsRouter = require("./routes/listings");
 const inquiriesRouter = require("./routes/inquiries");
+const categoriesRouter = require("./routes/categories");
 
 app.use("/api/auth", authRoutes);
 app.use('/api/vendors', vendorsRouter);
 app.use('/api', vendorListingsRouter);
 app.use("/api/listings", listingsRouter);
 app.use("/api", inquiriesRouter);
+app.use("/api", categoriesRouter);
 app.use("/uploads", express.static("uploads"));
 
 app.get('/', async (req, res) => {
