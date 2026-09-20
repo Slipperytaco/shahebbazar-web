@@ -21,6 +21,7 @@ export default function VendorListings({ vendorId, refresh }) {
             </div>
         );
     }
+
     async function deleteListing(id) {
         const res = await fetch(`http://localhost:4000/api/listings/${id}`, {
             method: "DELETE"
@@ -33,39 +34,46 @@ export default function VendorListings({ vendorId, refresh }) {
             return;
         }
 
-        // Refresh listings
         setListings(listings.filter((l) => l.listing_id !== id));
     }
-
 
     return (
         <div className="mt-10">
             <h3 className="text-lg font-semibold mb-3">Your Listings</h3>
+
             {status && (
                 <div className={status.type === "error" ? "form-status-error" : "form-status-success"}>
                     {status.message}
                 </div>
             )}
-            <div className="flex flex-col gap-4">
+
+            <div className="listings-grid">
                 {listings.map((listing) => (
-                    <div
-                        key={listing.listing_id}
-                        className="p-4 bg-neutral-900 border border-neutral-700 rounded-md"
-                    >
+                    <div key={listing.listing_id} className="listing-card">
+
+                        {listing.preview_photo && (
+                            <img
+                                src={listing.preview_photo}
+                                className="listing-image"
+                                alt="Listing preview"
+                            />
+                        )}
+
                         <h4 className="text-md font-semibold">{listing.title}</h4>
                         <p className="text-gray-400">${listing.price}</p>
-                        <p className="text-gray-400">{listing.category}</p>
+                        <p className="text-gray-400">{listing.category_name}</p>
+                        <p className="text-gray-400">{listing.inquiry_count} inquiries</p>
 
-                        <div className="flex gap-3 mt-3">
+                        <div className="listing-actions">
                             <a
-                                href={`/vendors/listings/${listing.listing_id}`}
+                                href={`/listings/${listing.listing_id}`}
                                 className="form-button-primary text-center"
                             >
                                 View
                             </a>
 
                             <a
-                                href={`/vendors/listings/${listing.listing_id}/edit`}
+                                href={`/listings/${listing.listing_id}/edit`}
                                 className="form-button-secondary text-center"
                             >
                                 Edit
@@ -78,6 +86,7 @@ export default function VendorListings({ vendorId, refresh }) {
                                 Delete
                             </button>
                         </div>
+
                     </div>
                 ))}
             </div>

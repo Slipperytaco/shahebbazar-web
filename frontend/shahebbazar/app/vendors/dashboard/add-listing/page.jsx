@@ -1,16 +1,41 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-export default function AddListing({ vendorId, onListingCreated }) {
+export default function AddListing({ onListingCreated }) {
+    const [vendors, setVendors] = useState([]);
+    const [vendorId, setVendorId] = useState("");
+
     const [form, setForm] = useState({
         title: "",
         description: "",
         price: "",
-        category: ""
+        category: ""    // becomes category_id 
     });
 
+    const [categories, setCategories] = useState([]);
     const [photos, setPhotos] = useState([]);
     const [status, setStatus] = useState(null);
+
+    // Load vendors
+    useEffect(() => {
+        async function loadVendors() {
+            const res = await fetch("http://localhost:4000/api/vendors");
+            const data = await res.json();
+            setVendors(data.vendors || []);
+        }
+        loadVendors();
+    }, []);
+    
+    // Load global categories
+    useEffect(() => {
+        async function loadCats() {
+            const res = await fetch("http://localhost:4000/api/categories");
+            const data = await res.json();
+            setCategories(data.categories || []);
+        }
+        loadCats();
+    }, []);
+
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -28,7 +53,6 @@ export default function AddListing({ vendorId, onListingCreated }) {
             return;
         }
 
-
         // 1. Create listing
         const listingRes = await fetch(
             `http://localhost:4000/api/vendors/${vendorId}/listings`,
@@ -36,8 +60,10 @@ export default function AddListing({ vendorId, onListingCreated }) {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    ...form,
-                    price: Number(form.price) // Ensure price is sent as a number
+                    title: form.title,
+                    description: form.description,
+                    price: Number(form.price),
+                    category: form.category   
                 })
             }
         );
@@ -67,7 +93,6 @@ export default function AddListing({ vendorId, onListingCreated }) {
 
         }
         //console.log("Vendor ID in AddListing:", vendorId);
-
         setStatus({ type: "success", message: "Listing created successfully!" });
         if (onListingCreated) {
             onListingCreated();
@@ -82,6 +107,21 @@ export default function AddListing({ vendorId, onListingCreated }) {
                     {status.message}
                 </div>
             )}
+
+            <select
+                name="vendorId"
+                value={vendorId}
+                onChange={(e) => setVendorId(e.target.value)}
+                className="form-input"
+            >
+                <option value="">Select Vendor</option>
+                {vendors.map((v) => (
+                    <option key={v.vendor_id} value={v.vendor_id}>
+                        {v.vendor_name}
+                    </option>
+                ))}
+            </select>
+
 
             <input
                 name="title"
@@ -99,13 +139,19 @@ export default function AddListing({ vendorId, onListingCreated }) {
                 className="form-input"
             />
 
-            <input
+            <select
                 name="category"
-                placeholder="Category"
                 value={form.category}
                 onChange={handleChange}
                 className="form-input"
-            />
+            >
+                <option value="">Select Category</option>
+                {categories.map((c) => (
+                    <option key={c.category_id} value={c.category_id}>
+                        {c.category_name}
+                    </option>
+                ))}
+            </select>
 
             <textarea
                 name="description"
