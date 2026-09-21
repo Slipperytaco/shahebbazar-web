@@ -1,22 +1,19 @@
 import Link from "next/link";
 import {
-    BookOpen,
     CalendarDays,
     Home,
     LayoutGrid,
     SquarePlus,
     Store,
-    TicketPercent,
     type LucideIcon,
 } from "lucide-react";
 import { t, localeHref, type Locale } from "@/lib/i18n";
 
 /**
- * Left rail: primary navigation plus the "Explore Rajshahi" card.
+ * Primary navigation rail with the location promotion card.
  *
- * Hidden below `lg`, where the layout collapses to a single column. The
- * client's brief says most visitors arrive on a phone, so this rail is the
- * first thing to go rather than something to squeeze in.
+ * Hidden below the `lg` breakpoint, where the layout collapses to a
+ * single column for mobile viewports.
  */
 
 interface NavLink {
@@ -25,13 +22,13 @@ interface NavLink {
     Icon: LucideIcon;
 }
 
+// Deals and Blog are missing on purpose — neither route exists yet, and
+// listing them put two guaranteed 404s in the main navigation.
 const LINKS: NavLink[] = [
     { key: "navHome", href: "/", Icon: Home },
     { key: "navBusinesses", href: "/search", Icon: Store },
     { key: "navCategories", href: "/categories", Icon: LayoutGrid },
-    { key: "navDeals", href: "/deals", Icon: TicketPercent },
     { key: "navEvents", href: "/events", Icon: CalendarDays },
-    { key: "navBlog", href: "/blog", Icon: BookOpen },
     { key: "navAddBusiness", href: "/vendors/register", Icon: SquarePlus },
 ];
 
@@ -85,11 +82,10 @@ export function SideNav({ locale, current = "/" }: { locale: Locale; current?: s
 }
 
 /**
- * Rajshahi skyline, drawn rather than photographed.
+ * Decorative skyline illustration.
  *
- * Inline SVG costs no request and cannot 404 on the client's VPS, which a
- * stock photograph in /public eventually would. This is artwork, not an
- * icon, so it is not a job for the icon library.
+ * Inline SVG avoids an additional request and a dependency on an external
+ * asset. Not an icon, so it is not sourced from the icon library.
  */
 function CityIllustration() {
     return (

@@ -38,9 +38,9 @@ router.post("/vendors/:vendorId/listings", async (req, res) => {
     try {
         const result = await pool.query(
             `INSERT INTO vendor_listings 
-       (vendor_id, title, description, price, category)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING listing_id`,
+            (vendor_id, title, description, price, category_id)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING listing_id`,
             [vendorId, title, description, price, category]
         );
 
@@ -77,12 +77,16 @@ router.post(
             const photoFiles = req.files;
 
             for (const file of photoFiles) {
+                const filename = file.filename; // multer gives this
+                const photoUrl = `${process.env.BASE_URL}/uploads/${filename}`;
+
                 await pool.query(
                     `INSERT INTO listing_photos (listing_id, photo_url)
-                     VALUES ($1, $2)`,
-                    [listingId, file.path]
+                    VALUES ($1, $2)`,
+                    [listingId, photoUrl]
                 );
             }
+
 
             res.json({ success: true, message: "Photos uploaded" });
         } catch (err) {
@@ -97,9 +101,36 @@ router.get("/vendors/:vendorId/listings", async (req, res) => {
 
     try {
         const result = await pool.query(
-            `SELECT * FROM vendor_listings
-       WHERE vendor_id = $1
-       ORDER BY listing_id DESC`,
+            `
+            SELECT 
+                vl.listing_id,
+                vl.vendor_id,
+                vl.title,
+                vl.description,
+                vl.price,
+                vl.created_at,
+                c.category_name,
+            -- First photo preview
+            (
+                SELECT photo_url 
+                FROM listing_photos 
+                WHERE listing_id = vl.listing_id
+                ORDER BY photo_id ASC
+                LIMIT 1
+            ) AS preview_photo,
+
+            -- Inquiry count
+            (
+                SELECT COUNT(*) 
+                FROM inquiries 
+                WHERE listing_id = vl.listing_id
+            ) AS inquiry_count
+
+            FROM vendor_listings vl
+            LEFT JOIN categories c ON vl.category_id = c.category_id
+            WHERE vl.vendor_id = $1
+            ORDER BY vl.listing_id DESC;
+            `,
             [vendorId]
         );
 
