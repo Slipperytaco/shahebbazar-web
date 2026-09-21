@@ -20,13 +20,11 @@ import { formatClockTime, formatRating, localiseDigits, toNumber } from "@/lib/f
 import type { BusinessDetail } from "@/lib/types";
 
 /**
- * The main column of a business profile.
+ * Business profile content column.
  *
- * The design shows tabs across the top (Overview / Services / Reviews /
- * Photos / About). They are rendered as anchor links to sections on the
- * same page rather than as JavaScript tab panels, for two reasons: the
- * whole profile stays in the HTML for crawlers, which is the point of this
- * page, and it needs no client component.
+ * The section navigation is implemented as in-page anchor links rather
+ * than tab panels, so the full profile is present in the rendered markup
+ * for crawlers and no client component is required.
  */
 export function BusinessProfile({
     locale,
@@ -154,7 +152,7 @@ export function BusinessProfile({
                     </div>
                 </div>
 
-                {/* Anchor links, not JavaScript tabs — see the note above. */}
+                {/* In-page anchors rather than tab panels. */}
                 <nav
                     aria-label="Sections"
                     className="flex gap-1 overflow-x-auto border-t border-line px-5 sm:px-6"
@@ -246,6 +244,8 @@ export function BusinessProfile({
                     <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {listings.map((item) => {
                             const price = toNumber(item.price);
+                            const priceMax = toNumber(item.price_max);
+                            const minOrder = item.min_order_qty ?? 0;
                             return (
                                 <li
                                     key={item.listing_id}
@@ -259,15 +259,32 @@ export function BusinessProfile({
                                             {item.description}
                                         </p>
                                     )}
-                                    {price > 0 && (
-                                        <p className="mt-2 text-[0.8125rem] font-medium text-brand-700">
-                                            ৳{localiseDigits(price.toLocaleString("en-US"), locale)}
-                                            {item.unit && (
-                                                <span className="font-normal text-muted">
-                                                    {" "}
-                                                    / {item.unit}
-                                                </span>
-                                            )}
+                                    <p className="mt-2 text-[0.8125rem] font-medium text-brand-700">
+                                        {price > 0 ? (
+                                            <>
+                                                {formatTaka(price, locale)}
+                                                {priceMax > price && (
+                                                    <> – {formatTaka(priceMax, locale)}</>
+                                                )}
+                                                {item.unit && (
+                                                    <span className="font-normal text-muted">
+                                                        {" "}
+                                                        / {item.unit}
+                                                    </span>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <span className="font-normal text-muted">
+                                                {copy.priceOnRequest}
+                                            </span>
+                                        )}
+                                    </p>
+
+                                    {minOrder > 0 && (
+                                        <p className="mt-1 text-[0.75rem] text-muted">
+                                            {copy.minOrder}:{" "}
+                                            {localiseDigits(minOrder.toLocaleString("en-US"), locale)}
+                                            {item.unit ? ` ${item.unit}` : ""}
                                         </p>
                                     )}
                                 </li>
@@ -333,8 +350,7 @@ export function BusinessProfile({
                             })}
                         </ul>
 
-                        {/* Needs an account, so it points at sign-in rather
-                            than a form that cannot submit. */}
+                        {/* Requires an account; links to sign-in. */}
                         <Link
                             href={localeHref("/login", locale)}
                             className="mt-4 flex w-full items-center justify-center rounded-[10px] bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
@@ -428,6 +444,10 @@ export function BusinessProfile({
     );
 }
 
+function formatTaka(value: number, locale: Locale): string {
+    return `৳${localiseDigits(value.toLocaleString("en-US"), locale)}`;
+}
+
 function ActionButtons({ locale, detail }: { locale: Locale; detail: BusinessDetail }) {
     const copy = t(locale);
     const { business } = detail;
@@ -441,8 +461,8 @@ function ActionButtons({ locale, detail }: { locale: Locale; detail: BusinessDet
                   `${business.vendor_name} ${business.vendor_address ?? "Rajshahi"}`
               )}`;
 
-    // WhatsApp rather than the Web Share API: sharing has to work without
-    // JavaScript, and WhatsApp is how a link actually travels here.
+    // A WhatsApp share URL is used in place of the Web Share API, which
+    // requires JavaScript and is not available in every browser.
     const shareUrl = `https://wa.me/?text=${encodeURIComponent(
         `${business.vendor_name} — ${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/business/${business.vendor_slug}`
     )}`;
@@ -457,8 +477,8 @@ function ActionButtons({ locale, detail }: { locale: Locale; detail: BusinessDet
                 {copy.call}
             </a>
 
-            {/* Messaging needs an account and the inbox is not built, so
-                this goes to sign-in rather than nowhere. */}
+            {/* Requires an account; links to sign-in until messaging is
+                implemented. */}
             <Link
                 href={localeHref("/login", locale)}
                 className="col-span-2 inline-flex items-center justify-center gap-2 rounded-[10px] border border-line-strong bg-surface px-4 py-2.5 text-sm font-medium text-brand-600 transition-colors hover:border-brand-600 hover:bg-brand-50"
@@ -508,7 +528,7 @@ function FactIcon({ name }: { name: string | null }) {
     return <Icon className="size-4" />;
 }
 
-/** "2 weeks ago" — computed on the server, so no hydration mismatch. */
+/** Formats a timestamp as a relative description, evaluated on the server. */
 function relativeTime(iso: string): string {
     const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
     if (days < 1) return "today";
