@@ -8,29 +8,17 @@
    ----------------------------------------------------------- */
 :root {
   --color-bg: #121212;
-  /* main background */
   --color-surface: #1E1E1E;
-  /* card background */
   --color-surface-light: #2A2A2A;
-  /* input background */
   --color-text: #E5E5E5;
-  /* main text */
   --color-text-muted: #A1A1A1;
-  /* secondary text */
   --color-accent: #4A3AFF;
-  /* ShahebBazar accent */
   --color-accent-dark: #372ACC;
-  /* accent hover */
   --color-border: #3A3A3A;
-  /* subtle borders */
   --color-success-bg: #16301F;
-  /* success background */
   --color-success-text: #7DDB9B;
-  /* success text */
   --color-error-bg: #301616;
-  /* error background */
   --color-error-text: #DB7D7D;
-  /* error text */
 }
 
 /* -----------------------------------------------------------
@@ -96,4 +84,83 @@ body {
 /* Page wrapper for centered content */
 .page-center {
   @apply max-w-md mx-auto mt-10;
+}
+
+/* -----------------------------------------------------------
+   Responsive Layout Utilities
+   ----------------------------------------------------------- */
+
+/* Vendor column */
+.vendor-column {
+  @apply w-full lg:w-[320px] flex-shrink-0;
+}
+
+/* Listings grid */
+.listings-grid {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4;
+}
+
+/* Listing card */
+.listing-card {
+  @apply p-4 bg-neutral-900 border border-neutral-700 rounded-md flex flex-col;
+}
+
+/* Listing image */
+.listing-image {
+  @apply w-full h-40 object-cover rounded-md mb-3;
+}
+
+/* Listing actions */
+.listing-actions {
+  @apply flex flex-col sm:flex-row gap-3 mt-3;
+}
+
+/* -----------------------------------------------------------
+   Dashboard Layout Utilities
+   ----------------------------------------------------------- */
+
+/* Vendor info card */
+.vendor-card {
+  @apply mt-6 p-4 rounded-md bg-neutral-900 border border-neutral-700;
+}
+
+/* Vendor action buttons */
+.vendor-actions {
+  @apply flex flex-col gap-3 mt-6;
+}
+
+/* Placeholder grid */
+.placeholder-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6 mt-10;
+}
+
+
+/* Placeholder card — FIXED SIZING */
+.placeholder-card {
+  @apply p-6 rounded-md bg-neutral-900 border border-neutral-700;
+}
+
+/* Modal overlay */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/60 flex items-center justify-center z-50;
+}
+
+/* Modal card */
+.modal-card {
+  @apply bg-neutral-900 border border-neutral-700 rounded-lg p-6 w-full max-w-lg;
+}
+
+/* Outer dashboard container */
+.dashboard-container {
+  @apply max-w-7xl mx-auto px-4 mt-10 w-full;
+}
+
+/* Dashboard title wrapper */
+.dashboard-title {
+  @apply mb-6 text-center;
+}
+
+/* Main dashboard layout */
+.dashboard-layout {
+  @apply flex flex-col lg:flex-row gap-6;
 }

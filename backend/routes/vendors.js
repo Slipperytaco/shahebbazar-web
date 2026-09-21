@@ -5,9 +5,33 @@ const router = express.Router();
 router.get('/', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM vendors');
-        res.json(result.rows);
+
+        res.json({
+            success: true,
+            vendors: result.rows
+        });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+router.get('/search', async (req, res) => {
+    const q = req.query.q;
+
+    try {
+        const result = await pool.query(
+            `SELECT * FROM vendors 
+             WHERE vendor_name ILIKE $1 
+             OR vendor_city ILIKE $1`,
+            [`%${q}%`]
+        );
+
+        res.json({
+            success: true,
+            vendors: result.rows
+        });
+
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
@@ -17,7 +41,6 @@ router.post('/', async (req, res) => {
     const {
         vendor_name,
         vendor_email,
-        vendor_password,
         vendor_phone,
         vendor_address,
         vendor_city
@@ -26,13 +49,12 @@ router.post('/', async (req, res) => {
     try {
         const result = await pool.query(
             `INSERT INTO vendors 
-      (vendor_name, vendor_email, vendor_password, vendor_phone, vendor_address, vendor_city)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      (vendor_name, vendor_email, vendor_phone, vendor_address, vendor_city)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *`,
             [
                 vendor_name,
                 vendor_email,
-                vendor_password,
                 vendor_phone,
                 vendor_address,
                 vendor_city
@@ -44,5 +66,18 @@ router.post('/', async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
+
+// get categories for a vendor: 
+router.get("/categories", async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT * FROM categories ORDER BY category_id ASC"
+        );
+        res.json({ categories: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 
 module.exports = router;
