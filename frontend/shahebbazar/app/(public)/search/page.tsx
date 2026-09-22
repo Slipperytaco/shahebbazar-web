@@ -10,11 +10,10 @@ import { resolveLocale, t, localeHref } from "@/lib/i18n";
 import { localiseDigits } from "@/lib/format";
 
 /**
- * Search results.
+ * Search results page.
  *
- * A server component: results are in the HTML before any JavaScript runs,
- * and every filter combination has its own URL, so a filtered view can be
- * linked, bookmarked and crawled.
+ * A server component. Each filter combination resolves to a distinct URL,
+ * so a filtered view can be linked, bookmarked and crawled.
  */
 
 const PAGE_SIZE = 20;
@@ -43,9 +42,9 @@ export async function generateMetadata({
         description: q
             ? `Businesses and services matching "${q}" in Rajshahi. Compare ratings, opening hours and contact details on Shahebbazar.`
             : "Browse trusted businesses and services across Rajshahi by category and area.",
-        // A results page for an arbitrary query is thin content and there
-        // are unlimited variations of it. Let Google follow the links to
-        // the shop pages, which are the pages worth indexing.
+        // Result pages are excluded from the index because arbitrary
+        // queries produce unbounded near-duplicate pages. Links are still
+        // followed so business profiles are discovered.
         robots: { index: false, follow: true },
     };
 }
@@ -58,8 +57,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     const page = Math.max(parseInt(params.page ?? "1", 10) || 1, 1);
     const offset = (page - 1) * PAGE_SIZE;
 
-    // Categories come from the home payload, which is already cached — no
-    // reason to ask the API for the taxonomy twice.
+    // The category list is read from the cached home payload rather than
+    // requested separately.
     const [data, home] = await Promise.all([
         searchBusinesses({
             q: params.q,
@@ -80,12 +79,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         lang: locale === "bn" ? "bn" : undefined,
     };
 
-    // Promoted rows are displayed too, so they count towards "showing N of M".
+    // Promoted records are displayed and therefore included in the count.
     const shownOnPage = data.sponsored.length + data.results.length;
     const firstRow = shownOnPage === 0 ? 0 : offset + 1;
     const lastRow = offset + shownOnPage;
-    // Based on what came back rather than on the total, because the total
-    // includes promoted rows that are not part of the paginated set.
+    // Derived from the returned page size, as the total includes promoted
+    // records that are not part of the paginated set.
     const hasMore = data.results.length === PAGE_SIZE;
     const nothingFound = shownOnPage === 0;
     const num = (n: number) => localiseDigits(String(n), locale);
@@ -134,12 +133,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                         />
                     </div>
 
-                    {/*
-                      Promoted shops sit above the organic list in their own
-                      block, each labelled. They are never mixed into the
-                      results — presenting paid placement as an organic
-                      ranking is misleading conduct under the ACS code.
-                    */}
+                    {/* Promoted records are rendered in a separate labelled
+                        block above the organic results. */}
                     {data.sponsored.length > 0 && (
                         <ul className="mt-5 divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card">
                             {data.sponsored.map((business) => (
@@ -150,8 +145,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                         </ul>
                     )}
 
-                    {/* Only when nothing at all is on screen — a page showing
-                        a promoted shop must not also say "no matches". */}
+                    {/* Shown only when neither organic nor promoted records
+                        are present. */}
                     {nothingFound ? (
                         <div className="mt-5 rounded-xl border border-line bg-surface p-12 text-center shadow-card">
                             <p className="font-medium">{copy.noResults}</p>

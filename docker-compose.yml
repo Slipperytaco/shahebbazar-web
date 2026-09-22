@@ -1,0 +1,58 @@
+# Local PostgreSQL for development.
+#
+# Everything the API needs in one container: no system-wide Postgres
+# install, no Administrator rights, and a clean database in seconds when
+# the seed data changes.
+#
+#   docker compose up -d       start it (first run creates the volume)
+#   npm run db:load            create the schema and seed it
+#   docker compose down        stop it -- data survives
+#   docker compose down -v     stop it AND delete the data
+#
+# The credentials below match backend/.env.example. If you change them,
+# change them in both places.
+
+services:
+  db:
+    image: postgres:16-alpine
+    # Named so it is not confused with `shahebbazar-db`, which belongs to
+    # the reference project in ../shahebbazar and is not ours.
+    container_name: shahebbazar-web-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: shahebbazar
+
+      # v_business_cards derives the "open now" badge from the session
+      # timezone -- it compares LOCALTIME against vendor_opening_hours and
+      # picks today's row with EXTRACT(DOW FROM CURRENT_DATE). Left at UTC,
+      # every shop's open/closed state is wrong by six hours.
+      TZ: Asia/Dhaka
+      PGTZ: Asia/Dhaka
+
+    ports:
+      # If 5432 is already taken on your machine -- usually by a
+      # system-wide Postgres install -- put DB_PORT=5433 in a .env file
+      # next to this one and set PGPORT to match in backend/.env.
+      - "${DB_PORT:-5432}:5432"
+
+    volumes:
+      # A named volume, so the data survives `docker compose down` and is
+      # removed only by `down -v`. Bind-mounting a host folder here breaks
+      # on Windows: Postgres requires permissions NTFS cannot express.
+      - shahebbazar-pgdata:/var/lib/postgresql/data
+
+    healthcheck:
+      # `docker compose up --wait` blocks on this, so scripts can rely on
+      # the database actually accepting connections rather than the
+      # container merely having started.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shahebbazar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  shahebbazar-pgdata:

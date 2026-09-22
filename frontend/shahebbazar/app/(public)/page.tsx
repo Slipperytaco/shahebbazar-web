@@ -10,11 +10,9 @@ import { resolveLocale } from "@/lib/i18n";
 /**
  * Home page.
  *
- * A server component. It awaits the API before returning markup, so the
- * HTML that reaches the browser — and Googlebot — already contains every
- * category, business and event. The client's scope email requires
- * server-side rendering for exactly this reason, and the previous
- * `"use client"` + `useEffect` pages did the opposite.
+ * A server component: data is resolved before markup is returned, so the
+ * rendered response contains every category, business and event without
+ * requiring client-side execution.
  */
 
 export const metadata: Metadata = {
@@ -33,7 +31,7 @@ export const metadata: Metadata = {
 export default async function HomePage({
     searchParams,
 }: {
-    // A Promise in Next 15+, so it has to be awaited before use.
+    // Resolved asynchronously in Next.js 15 and later.
     searchParams: Promise<{ lang?: string }>;
 }) {
     const [{ lang }, data] = await Promise.all([searchParams, getHomeData()]);
@@ -61,12 +59,10 @@ export default async function HomePage({
 }
 
 /**
- * Structured data for the site itself.
+ * Site-level structured data.
  *
- * The client asked for JSON-LD on merchant listings — that belongs on the
- * business profile page as `LocalBusiness`. What belongs here is
- * `WebSite` with a SearchAction, which is what lets Google render a
- * sitelinks search box for the domain.
+ * Declares `WebSite` with a `SearchAction`, enabling a sitelinks search
+ * box. Business-level `LocalBusiness` data is emitted by the profile page.
  */
 function SiteJsonLd() {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -90,8 +86,7 @@ function SiteJsonLd() {
     return (
         <script
             type="application/ld+json"
-            // Values are our own constants, not user input, so there is
-            // nothing here for a visitor to inject into.
+            // Serialised from application constants, not user input.
             dangerouslySetInnerHTML={{ __html: JSON.stringify(json) }}
         />
     );

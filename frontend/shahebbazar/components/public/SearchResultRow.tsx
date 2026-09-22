@@ -7,9 +7,10 @@ import { formatRating, localiseDigits, toNumber } from "@/lib/format";
 import type { BusinessCard } from "@/lib/types";
 
 /**
- * A horizontal result row: photo left, detail centre, rating and action
- * right. Distinct from the square card used on the home page, because a
- * result row has to carry a description and an address as well.
+ * Search result row.
+ *
+ * A wider layout than the summary card, carrying the description and
+ * address in addition to the rating and open state.
  */
 export function SearchResultRow({
     locale,
@@ -18,7 +19,7 @@ export function SearchResultRow({
 }: {
     locale: Locale;
     business: BusinessCard;
-    /** True only for rows from the API's `sponsored` array. */
+    /** Set only for records returned in the API's `sponsored` array. */
     sponsored?: boolean;
 }) {
     const copy = t(locale);
