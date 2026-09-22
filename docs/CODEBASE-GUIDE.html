@@ -1,0 +1,1390 @@
+<title>Shaheb Bazar Codebase Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Bengali:wght@400;600&display=swap">
+
+<style>
+/* ==================================================================
+   Tokens — light is the base set; both dark paths redefine only these.
+   Neutrals carry a slight slate/blue bias to sit with the app's own
+   brand blue (#2563eb, lifted from frontend/app/globals.css @theme).
+   ================================================================== */
+:root {
+  --bg:        #f6f8fc;
+  --surface:   #ffffff;
+  --surface-2: #eef2f8;
+  --sunken:    #f2f5fa;
+
+  --ink:   #101827;
+  --muted: #58687f;
+  --soft:  #8695ab;
+
+  --line:        #e2e8f1;
+  --line-strong: #cfd8e6;
+
+  --accent:      #2563eb;
+  --accent-deep: #1d4ed8;
+  --accent-wash: #eaf1ff;
+
+  /* Layer hues. Used only where a thing genuinely belongs to a tier. */
+  --web:      #2563eb;
+  --web-wash: #e9f0ff;
+  --api:      #9a5406;
+  --api-wash: #fdf1e0;
+  --db:       #0b6f66;
+  --db-wash:  #e0f2ef;
+
+  --warn:      #a1440d;
+  --warn-wash: #fdf0e7;
+  --warn-line: #edc7ab;
+
+  --code-bg: #f3f6fb;
+
+  --f-display: "Newsreader", Georgia, "Times New Roman", serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --f-bn: "Noto Sans Bengali", "Nirmala UI", sans-serif;
+
+  --col: 940px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        #0d1117;
+    --surface:   #141a23;
+    --surface-2: #1a2230;
+    --sunken:    #10161f;
+
+    --ink:   #e4eaf3;
+    --muted: #9aa8bd;
+    --soft:  #74839a;
+
+    --line:        #232c3a;
+    --line-strong: #33405280;
+
+    --accent:      #77a6ff;
+    --accent-deep: #a3c2ff;
+    --accent-wash: #16233a;
+
+    --web:      #77a6ff;
+    --web-wash: #16233a;
+    --api:      #e0a765;
+    --api-wash: #2a2015;
+    --db:       #46c2b1;
+    --db-wash:  #10262a;
+
+    --warn:      #e8a476;
+    --warn-wash: #2a1d14;
+    --warn-line: #59392480;
+
+    --code-bg: #10161f;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg:        #0d1117;
+  --surface:   #141a23;
+  --surface-2: #1a2230;
+  --sunken:    #10161f;
+
+  --ink:   #e4eaf3;
+  --muted: #9aa8bd;
+  --soft:  #74839a;
+
+  --line:        #232c3a;
+  --line-strong: #33405280;
+
+  --accent:      #77a6ff;
+  --accent-deep: #a3c2ff;
+  --accent-wash: #16233a;
+
+  --web:      #77a6ff;
+  --web-wash: #16233a;
+  --api:      #e0a765;
+  --api-wash: #2a2015;
+  --db:       #46c2b1;
+  --db-wash:  #10262a;
+
+  --warn:      #e8a476;
+  --warn-wash: #2a1d14;
+  --warn-line: #59392480;
+
+  --code-bg: #10161f;
+}
+
+/* ==================================================================
+   Base
+   ================================================================== */
+* { box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 2px; }
+a:hover { color: var(--accent-deep); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+code, kbd { font-family: var(--f-mono); font-size: 0.86em; }
+.bn { font-family: var(--f-bn); }
+
+/* ==================================================================
+   Shell — TOC rail + reading column
+   ================================================================== */
+.shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 0 20px 120px;
+}
+@media (min-width: 1100px) {
+  .shell {
+    grid-template-columns: 232px minmax(0, var(--col));
+    gap: 56px;
+    justify-content: center;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+.rail { display: none; }
+@media (min-width: 1100px) {
+  .rail {
+    display: block;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100vh;
+    overflow-y: auto;
+    padding: 40px 0 40px;
+    font-size: 13.5px;
+  }
+}
+.rail-title {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--soft);
+  margin: 0 0 14px;
+}
+.rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rail a {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 8px;
+  padding: 4px 8px 4px 0;
+  color: var(--muted);
+  text-decoration: none;
+  line-height: 1.35;
+}
+.rail a:hover { color: var(--accent); }
+.rail .n { font-family: var(--f-mono); font-size: 11.5px; color: var(--soft); padding-top: 2px; }
+
+.doc { min-width: 0; padding-top: 40px; }
+
+/* ==================================================================
+   Masthead
+   ================================================================== */
+.masthead { padding: 24px 0 40px; border-bottom: 1px solid var(--line); margin-bottom: 48px; }
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--soft);
+  margin: 0 0 18px;
+}
+.masthead h1 {
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: clamp(2.4rem, 5.5vw, 3.5rem);
+  line-height: 1.06;
+  letter-spacing: -0.018em;
+  margin: 0 0 18px;
+  text-wrap: balance;
+}
+.standfirst {
+  font-family: var(--f-display);
+  font-size: clamp(1.05rem, 2.2vw, 1.25rem);
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 62ch;
+  margin: 0 0 26px;
+}
+.stack-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-family: var(--f-mono);
+  font-size: 12px;
+}
+.stack-line .sep { color: var(--soft); }
+
+/* ==================================================================
+   Layer chips — WEB / API / DB. Same three colours everywhere.
+   ================================================================== */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.chip.web { background: var(--web-wash); color: var(--web); }
+.chip.api { background: var(--api-wash); color: var(--api); }
+.chip.db  { background: var(--db-wash);  color: var(--db); }
+.chip.warn{ background: var(--warn-wash);color: var(--warn); }
+
+/* ==================================================================
+   Sections & headings
+   ================================================================== */
+section { margin: 0 0 76px; scroll-margin-top: 24px; }
+
+.sec-head { display: flex; align-items: baseline; gap: 14px; margin: 0 0 8px; }
+.sec-num {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  padding-top: 4px;
+}
+h2 {
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: clamp(1.7rem, 3.4vw, 2.15rem);
+  line-height: 1.15;
+  letter-spacing: -0.012em;
+  margin: 0;
+  text-wrap: balance;
+}
+.sec-sub { color: var(--muted); margin: 0 0 34px 0; max-width: 68ch; font-size: 15.5px; }
+
+h3 {
+  font-family: var(--f-body);
+  font-weight: 600;
+  font-size: 1.06rem;
+  letter-spacing: -0.005em;
+  margin: 42px 0 12px;
+  text-wrap: balance;
+}
+h3:first-child { margin-top: 0; }
+h4 {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--soft);
+  margin: 30px 0 10px;
+}
+
+p { margin: 0 0 16px; max-width: 70ch; }
+.doc ul, .doc ol { max-width: 70ch; padding-left: 20px; margin: 0 0 18px; }
+.doc li { margin-bottom: 7px; }
+.doc li::marker { color: var(--soft); }
+
+strong { font-weight: 600; }
+em { font-style: italic; }
+
+.pathname {
+  font-family: var(--f-mono);
+  font-size: 0.86em;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+/* ==================================================================
+   Code blocks — labelled with the file they come from
+   ================================================================== */
+.code {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 0 0 22px;
+  background: var(--code-bg);
+}
+.code-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.code-label .who { color: var(--soft); }
+.code pre {
+  margin: 0;
+  padding: 14px;
+  overflow-x: auto;
+  font-family: var(--f-mono);
+  font-size: 12.6px;
+  line-height: 1.62;
+  color: var(--ink);
+  tab-size: 2;
+}
+.code pre .c { color: var(--soft); font-style: italic; }
+.code pre .k { color: var(--accent); }
+.code pre .s { color: var(--db); }
+
+/* ==================================================================
+   Pipeline diagram — three tiers, one row each
+   ================================================================== */
+.pipeline {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 22px;
+  margin: 0 0 26px;
+  overflow-x: auto;
+}
+.pipe-row {
+  display: grid;
+  grid-template-columns: 118px 1fr;
+  gap: 18px;
+  align-items: start;
+  padding: 15px 0;
+  min-width: 480px;
+}
+.pipe-row + .pipe-row { border-top: 1px dashed var(--line); }
+.pipe-side { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
+.pipe-port { font-family: var(--f-mono); font-size: 11px; color: var(--soft); }
+.pipe-body h5 { margin: 0 0 4px; font-size: 14.5px; font-weight: 600; }
+.pipe-body p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: none; }
+.pipe-arrow {
+  font-family: var(--f-mono);
+  color: var(--soft);
+  font-size: 12px;
+  padding: 2px 0 2px 136px;
+  min-width: 480px;
+}
+
+/* ==================================================================
+   Trace — numbered vertical rail (used for request lifecycles)
+   ================================================================== */
+.trace { list-style: none; padding: 0; margin: 0 0 24px; max-width: none; }
+.trace > li {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 16px;
+  padding: 0 0 20px;
+  position: relative;
+  margin: 0;
+}
+.trace > li::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 26px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--line);
+}
+.trace > li:last-child::before { display: none; }
+.trace .step {
+  width: 29px; height: 29px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--f-mono);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  position: relative;
+  z-index: 1;
+}
+.trace .step.web { border-color: var(--web); color: var(--web); background: var(--web-wash); }
+.trace .step.api { border-color: var(--api); color: var(--api); background: var(--api-wash); }
+.trace .step.db  { border-color: var(--db);  color: var(--db);  background: var(--db-wash); }
+.trace .what { padding-top: 3px; min-width: 0; }
+.trace .what strong { display: block; font-size: 14.5px; margin-bottom: 2px; }
+.trace .what p { margin: 0; font-size: 14px; color: var(--muted); max-width: 66ch; }
+.trace .what code { color: var(--ink); }
+
+/* ==================================================================
+   Tables
+   ================================================================== */
+.tw { overflow-x: auto; margin: 0 0 24px; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.8px; background: var(--surface); }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--soft);
+  font-weight: 600;
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: none; }
+td code, th code { font-size: 12.4px; }
+.mono-col { font-family: var(--f-mono); font-size: 12.4px; white-space: nowrap; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ==================================================================
+   Notes — a left stripe only where severity is real
+   ================================================================== */
+.note {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-wash);
+  border-radius: 0 8px 8px 0;
+  padding: 14px 18px;
+  margin: 0 0 24px;
+  font-size: 14.2px;
+}
+.note p { margin: 0 0 10px; max-width: 66ch; }
+.note p:last-child { margin: 0; }
+.note-title {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0 0 6px;
+}
+.note.broken { border-left-color: var(--warn); background: var(--warn-wash); }
+.note.broken .note-title { color: var(--warn); }
+
+/* Plain aside: no stripe, no fill — a quieter register */
+.aside {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+  margin: 0 0 24px;
+  font-size: 14.2px;
+  color: var(--muted);
+}
+.aside p { margin: 0 0 8px; }
+.aside p:last-child { margin: 0; }
+
+/* ==================================================================
+   Key/value definition rows (endpoints, env vars)
+   ================================================================== */
+.defs { display: flex; flex-direction: column; gap: 0; margin: 0 0 26px; border-top: 1px solid var(--line); }
+.def {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+@media (min-width: 720px) {
+  .def { grid-template-columns: 260px 1fr; gap: 24px; }
+}
+.def-key { font-family: var(--f-mono); font-size: 12.6px; color: var(--ink); font-weight: 500; word-break: break-word; }
+.def-val { font-size: 14.2px; color: var(--muted); }
+.def-val p { margin: 0 0 8px; max-width: 64ch; }
+.def-val p:last-child { margin: 0; }
+.def-val strong { color: var(--ink); }
+
+/* ==================================================================
+   Panels — used for the file map
+   ================================================================== */
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 20px 22px;
+  margin: 0 0 24px;
+}
+.panel h4 { margin-top: 0; }
+.tree {
+  font-family: var(--f-mono);
+  font-size: 12.4px;
+  line-height: 1.85;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--muted);
+}
+.tree b { color: var(--ink); font-weight: 500; }
+.tree i { color: var(--soft); font-style: normal; }
+
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 44px 0; }
+
+footer.end {
+  border-top: 1px solid var(--line);
+  padding-top: 22px;
+  color: var(--soft);
+  font-size: 13px;
+  max-width: 70ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="shell">
+
+<nav class="rail" aria-label="Contents">
+  <p class="rail-title">Contents</p>
+  <ol>
+    <li><a href="#map"><span class="n">00</span><span>The shape of it</span></a></li>
+    <li><a href="#run"><span class="n">01</span><span>Running it</span></a></li>
+    <li><a href="#db"><span class="n">02</span><span>The database</span></a></li>
+    <li><a href="#connect"><span class="n">03</span><span>Connecting to Postgres</span></a></li>
+    <li><a href="#api"><span class="n">04</span><span>The backend</span></a></li>
+    <li><a href="#web"><span class="n">05</span><span>The frontend</span></a></li>
+    <li><a href="#seam"><span class="n">06</span><span>How they connect</span></a></li>
+    <li><a href="#traces"><span class="n">07</span><span>Four full traces</span></a></li>
+    <li><a href="#gaps"><span class="n">08</span><span>What is broken</span></a></li>
+    <li><a href="#filemap"><span class="n">09</span><span>File map</span></a></li>
+  </ol>
+</nav>
+
+<article class="doc">
+
+<header class="masthead">
+  <p class="eyebrow">COS40005 · Group 23 · shahebbazar-web</p>
+  <h1>Shaheb Bazar, end to end</h1>
+  <p class="standfirst">A local business directory for Rajshahi, Bangladesh. Three processes — a Next.js site, an Express API, a PostgreSQL database — and this is every seam between them: what each one does, what it sends, and where it currently breaks.</p>
+  <div class="stack-line">
+    <span class="chip web">Next.js 16 · :3000</span>
+    <span class="sep">→</span>
+    <span class="chip api">Express 5 · :4000</span>
+    <span class="sep">→</span>
+    <span class="chip db">PostgreSQL 15+ · :5432</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section id="map">
+  <div class="sec-head"><span class="sec-num">00</span><h2>The shape of it</h2></div>
+  <p class="sec-sub">Three tiers, each with exactly one job, talking in one direction only. Nothing skips a tier, and nothing talks backwards.</p>
+
+  <div class="pipeline">
+    <div class="pipe-row">
+      <div class="pipe-side"><span class="chip web">Web</span><span class="pipe-port">localhost:3000</span></div>
+      <div class="pipe-body">
+        <h5>Next.js — renders HTML</h5>
+        <p>Reads the URL, calls the API <em>on the server</em>, and returns finished HTML. It never queries Postgres and it holds no business logic beyond formatting.</p>
+      </div>
+    </div>
+    <div class="pipe-arrow">↓ &nbsp;<code>fetch(process.env.API_BASE_URL + "/api/…")</code> — server-to-server HTTP, invisible to the browser</div>
+    <div class="pipe-row">
+      <div class="pipe-side"><span class="chip api">API</span><span class="pipe-port">localhost:4000</span></div>
+      <div class="pipe-body">
+        <h5>Express — turns URLs into SQL</h5>
+        <p>Validates and clamps query parameters, runs SQL through a connection pool, shapes the rows into JSON. Also serves uploaded images from <span class="pathname">backend/uploads/</span>.</p>
+      </div>
+    </div>
+    <div class="pipe-arrow">↓ &nbsp;<code>pool.query(sql, params)</code> — parameterised, over the <code>pg</code> pool</div>
+    <div class="pipe-row">
+      <div class="pipe-side"><span class="chip db">DB</span><span class="pipe-port">localhost:5432</span></div>
+      <div class="pipe-body">
+        <h5>PostgreSQL — stores and derives</h5>
+        <p>18 tables, 4 views. The views do real work: ratings, "open now", the moderation queue. Only <code>vendor_status = 'approved'</code> rows are ever visible to the public.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>The one rule that shapes the whole frontend</h3>
+  <p>Every public page fetches its data <strong>on the server, during rendering</strong> — never in a <code>useEffect</code> in the browser. That single rule is why the pages are structured the way they are.</p>
+  <p>The client requirement is that shop pages must be crawlable by Google. A page that fetches in the browser sends Googlebot an empty <code>&lt;div&gt;</code>, because the crawler does not reliably wait for JavaScript to fill it in. A page that fetches on the server sends complete HTML with every shop name, rating and phone number already in it.</p>
+  <p>So: <span class="pathname">app/(public)/page.tsx</span> is an <code>async</code> function that <code>await</code>s data before returning JSX. There is no loading spinner, no <code>useState</code>, no client-side data code anywhere in the public surface.</p>
+
+  <div class="aside">
+    <p><strong>Server component vs client component.</strong> In the Next.js App Router every file is a <em>server</em> component by default — it runs once, on the server, and its JavaScript is never sent to the browser. Adding <code>"use client"</code> at the top opts a file into the browser: it can use <code>useState</code>, <code>useEffect</code> and event handlers, and its code ships to the user.</p>
+    <p>In this repo only four files are client components, and all four are the older vendor pages. Everything on the public browsing surface is a server component.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="run">
+  <div class="sec-head"><span class="sec-num">01</span><h2>Running it</h2></div>
+  <p class="sec-sub">One command starts both servers. The database has to exist first.</p>
+
+  <div class="code">
+    <div class="code-label"><span>from the repo root</span><span class="who">first time only</span></div>
+<pre>npm install        <span class="c"># the concurrently wrapper at the root</span>
+npm run setup      <span class="c"># installs backend/ and frontend/shahebbazar/</span>
+
+cp backend/.env.example backend/.env
+cp frontend/shahebbazar/.env.example frontend/shahebbazar/.env.local
+<span class="c"># then edit backend/.env and set PGPASSWORD — nothing connects until you do</span>
+
+npm run db:load    <span class="c"># creates the database and loads all six SQL files</span>
+npm run dev        <span class="c"># starts both servers</span></pre>
+  </div>
+
+  <p>The root <span class="pathname">package.json</span> holds no application code at all. It exists only to run the two sub-projects together using <code>concurrently</code>, which prefixes and colour-codes each server's output:</p>
+
+  <div class="code">
+    <div class="code-label"><span>package.json</span><span class="who">root</span></div>
+<pre>"dev": "concurrently -n api,web -c blue,magenta --kill-others-on-fail
+          \"npm:dev:api\" \"npm:dev:web\"",
+"dev:api": "npm --prefix backend run dev",
+"dev:web": "npm --prefix frontend/shahebbazar run dev",</pre>
+  </div>
+
+  <p><code>--kill-others-on-fail</code> means if the API dies, the frontend is stopped too — you never end up debugging a frontend that is silently talking to nothing. Each sub-project still runs standalone (<code>cd backend &amp;&amp; npm run dev</code>) if you prefer two terminals.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td class="mono-col">npm run dev</td><td>Both servers, reloading on change (<code>node --watch</code> for the API, Turbopack for the web)</td></tr>
+        <tr><td class="mono-col">npm run db:load</td><td>Creates the database if absent, applies the six SQL files in order, prints row counts</td></tr>
+        <tr><td class="mono-col">npm run db:reset</td><td>Drops the database, recreates it, reloads. Asks for confirmation first</td></tr>
+        <tr><td class="mono-col">npm run build</td><td>Production build of the frontend only</td></tr>
+        <tr><td class="mono-col">npm run typecheck</td><td><code>tsc --noEmit</code> over the frontend — catches API-shape drift</td></tr>
+        <tr><td class="mono-col">npm run lint</td><td>ESLint over the frontend</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <p class="note-title">Start debugging here</p>
+    <p>Open <code>http://localhost:4000/api/health</code> before anything else. It reports connectivity and schema completeness <em>separately</em>, and tells you which SQL file is missing. Most "the home page is empty" reports are a half-loaded database, not a frontend bug.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="db">
+  <div class="sec-head"><span class="sec-num">02</span><h2>The database</h2></div>
+  <p class="sec-sub">PostgreSQL, 18 tables and 4 views, split across three additive schema files. The design decisions here drive everything above them.</p>
+
+  <h3>Naming conventions, and why they matter</h3>
+  <p>Three rules, applied without exception:</p>
+  <ul>
+    <li>Table names are <strong>snake_case plural</strong> — <code>vendors</code>, <code>categories</code>, <code>quote_requests</code>.</li>
+    <li>Column names are <strong>prefixed with their table</strong> — <code>vendor_name</code>, <code>category_slug</code>, <code>review_rating</code>.</li>
+    <li>Foreign keys are <code>&lt;table&gt;_id</code> — <code>vendor_id</code>, <code>user_id</code>, <code>location_id</code>.</li>
+  </ul>
+  <p>The prefixing looks redundant until you write a five-table join. <code>SELECT name FROM vendors JOIN categories …</code> is ambiguous; <code>vendor_name</code> and <code>category_name</code> are not. It also means a field name never changes as it travels: the column <code>vendor_slug</code> is <code>vendor_slug</code> in the SQL, in the JSON response, and in the TypeScript interface. You can trace any value back to its source without a translation table.</p>
+
+  <h3>The nine sections of the schema</h3>
+
+  <div class="defs">
+    <div class="def">
+      <div class="def-key">1 · Identity and access<br><span style="color:var(--soft)">users, otp_codes, sessions</span></div>
+      <div class="def-val">
+        <p>One <code>users</code> table for all three roles, discriminated by <code>user_role</code> (<code>customer</code> / <code>vendor</code> / <code>admin</code>). <strong>Phone is the primary identifier</strong>, stored E.164, because the client asked for phone-OTP login; email is optional and nullable.</p>
+        <p><code>otp_codes</code> stores a <em>hash</em> of the code, not the code, so a database leak does not hand over working login codes. <code>sessions</code> likewise stores <code>session_token_hash</code> — the real token lives only in an httpOnly cookie.</p>
+        <p><strong>None of these three tables is written to yet.</strong> Authentication does not exist. This is the single largest gap in the project.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">2 · Geography<br><span style="color:var(--soft)">locations</span></div>
+      <div class="def-val">
+        <p>A self-referencing hierarchy: country → division → district → city → area. Rajshahi's areas — <span class="bn">সাহেব বাজার</span> Shaheb Bazar, Laxmipur, Kazla, Talaimari, Binodpur — are <code>type = 'area'</code> rows under <code>rajshahi-city</code>.</p>
+        <p><code>location_path</code> is a materialised ancestry string (<code>bd/rajshahi-division/rajshahi-district/rajshahi-city/kazla</code>) with a <code>text_pattern_ops</code> index, so "everything under Rajshahi" is a prefix match rather than a recursive query. Expanding to a new city is an <code>INSERT</code>, not a migration.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">3 · Taxonomy<br><span style="color:var(--soft)">categories</span></div>
+      <div class="def-val">
+        <p>Also self-referencing: top-level categories (Medical, Tourism, Restaurants, Shopping, Education, Services) each have children. <code>category_slug</code> is the public URL segment. <code>category_icon</code> holds a <em>string</em> key like <code>"medical"</code>, resolved to a React icon component at runtime — this is the one place the frontend cannot import an icon directly.</p>
+        <p>Every user-facing name has a <code>_bn</code> twin: <code>category_name</code> and <code>category_name_bn</code>.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">4 · Vendors<br><span style="color:var(--soft)">vendors, vendor_categories</span></div>
+      <div class="def-val">
+        <p>The business profile. Note it does <strong>not</strong> hold credentials — <code>user_id</code> points at the owning account, so one person can own several businesses.</p>
+        <p><code>vendor_status</code> is the moderation gate: <code>draft</code> / <code>pending</code> / <code>approved</code> / <code>rejected</code> / <code>suspended</code>. Only <code>approved</code> is ever public. <code>vendor_is_featured</code> is paid placement, and it is a hard requirement that featured rows render with a visible label.</p>
+        <p><code>vendor_categories</code> is a plain many-to-many join table — a shop can sit in several categories.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">5 · Listings<br><span style="color:var(--soft)">vendor_listings, listing_photos</span></div>
+      <div class="def-val">
+        <p>The products and services a shop sells. Prices are a range (<code>listing_price</code> … <code>listing_price_max</code>) with a <code>CHECK</code> that max ≥ min, plus a unit and a minimum order quantity — this is a B2B directory, so "৳450 per kg, minimum 50 kg" is the normal case.</p>
+        <p><code>listing_photos</code> has a <strong>partial unique index</strong>: <code>UNIQUE (listing_id) WHERE photo_is_primary</code>. At most one primary photo per listing, enforced by the database rather than by hoping the application remembers.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">6 · Quotations<br><span style="color:var(--soft)">quote_requests, quote_responses</span></div>
+      <div class="def-val">
+        <p>The Phase-1 monetisation path. A buyer files an RFQ; sellers respond with a price. Money is settled off-platform — no payment gateway until Phase 2.</p>
+        <p>An RFQ may target one vendor <em>or</em> broadcast to a category, enforced by <code>CHECK (vendor_id IS NOT NULL OR category_id IS NOT NULL)</code>. <code>user_id</code> is nullable so guests can request a quote without registering, with contact fields required instead.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">7 · Messaging<br><span style="color:var(--soft)">conversations, messages, notifications</span></div>
+      <div class="def-val">
+        <p><code>UNIQUE (vendor_id, user_id, listing_id)</code> on conversations means one thread per buyer-seller-listing triple, so you cannot accidentally fork a conversation.</p>
+        <p><code>notifications</code> is an outbound <em>queue</em>: rows are written first with <code>status = 'queued'</code> and dispatched by a worker later, so a failed SMS is retryable rather than lost. The worker does not exist yet.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">8 · Reviews and moderation<br><span style="color:var(--soft)">reviews, reports</span></div>
+      <div class="def-val">
+        <p><code>UNIQUE (vendor_id, user_id)</code> — one review per person per shop. Rating is 1–5, body is optional (a rating with no text still counts toward the average but has nothing to display).</p>
+        <p><code>reports</code> is deliberately <strong>polymorphic</strong>: <code>report_target_type</code> + <code>report_target_id</code> with no foreign key, so one queue and one screen handles reported vendors, listings, reviews and messages. The cost is that the database cannot verify the target exists — the API has to.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">9 · Analytics<br><span style="color:var(--soft)">search_logs, vendor_profile_views, audit_logs</span></div>
+      <div class="def-val">
+        <p><code>search_query_normalised</code> is the case-folded form used for grouping. The comment in the schema is worth reading: normalisation must <em>preserve combining marks</em>, because Bengali vowel signs and the hasant are marks, not letters, and stripping them shreds the word.</p>
+        <p>Sessions are identified by a salted rotating hash, never an IP or account id, so the analytics stay aggregate.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>The four views — where the derived data lives</h3>
+  <p>A view is a saved query that behaves like a table. Putting the derivations here rather than in Express means every caller gets the same rating calculation and the same approval filter, and there is exactly one place to fix if it is wrong.</p>
+
+  <h4>v_business_cards — the one you will read most</h4>
+  <p>This is the shared projection behind every business list on the site: home page, search results, related shops. Reading from it is what makes "approved only" impossible to forget.</p>
+
+  <div class="code">
+    <div class="code-label"><span>database/schema.v2.1.sql</span><span class="who">abridged</span></div>
+<pre><span class="k">CREATE VIEW</span> v_business_cards <span class="k">AS</span>
+<span class="k">SELECT</span> v.vendor_id, v.vendor_slug, v.vendor_name, …
+       v.vendor_verified_at <span class="k">IS NOT NULL</span>        <span class="k">AS</span> is_verified,
+       loc.location_name                       <span class="k">AS</span> area_name,
+       cat.category_name                       <span class="k">AS</span> primary_category,
+       <span class="k">COALESCE</span>(r.avg_rating, 0)::numeric(2,1) <span class="k">AS</span> rating,
+       <span class="k">COALESCE</span>(r.review_count, 0)             <span class="k">AS</span> review_count,
+       h.open_state, h.close_time_today
+<span class="k">FROM</span> vendors v
+<span class="k">LEFT JOIN</span> locations loc <span class="k">ON</span> loc.location_id = v.location_id
+
+<span class="c">-- primary category = the vendor's category with the lowest sort order</span>
+<span class="k">LEFT JOIN LATERAL</span> (
+    <span class="k">SELECT</span> c.category_name, c.category_name_bn, c.category_slug
+    <span class="k">FROM</span> vendor_categories vc <span class="k">JOIN</span> categories c <span class="k">USING</span> (category_id)
+    <span class="k">WHERE</span> vc.vendor_id = v.vendor_id
+    <span class="k">ORDER BY</span> c.category_sort_order, c.category_id <span class="k">LIMIT</span> 1
+) cat <span class="k">ON TRUE</span>
+
+<span class="c">-- rating and count, computed once, here</span>
+<span class="k">LEFT JOIN LATERAL</span> (
+    <span class="k">SELECT AVG</span>(review_rating) <span class="k">AS</span> avg_rating, <span class="k">COUNT</span>(*) <span class="k">AS</span> review_count
+    <span class="k">FROM</span> reviews
+    <span class="k">WHERE</span> vendor_id = v.vendor_id <span class="k">AND</span> review_status = <span class="s">'published'</span>
+) r <span class="k">ON TRUE</span>
+
+<span class="c">-- "open now" for today, evaluated in the database session timezone</span>
+<span class="k">LEFT JOIN LATERAL</span> (
+    <span class="k">SELECT CASE WHEN</span> oh.hours_is_closed <span class="k">THEN</span> <span class="s">'closed'</span>
+                <span class="k">WHEN</span> oh.hours_is_24h    <span class="k">THEN</span> <span class="s">'open'</span>
+                <span class="k">WHEN LOCALTIME BETWEEN</span> oh.hours_open_time
+                                   <span class="k">AND</span> oh.hours_close_time <span class="k">THEN</span> <span class="s">'open'</span>
+                <span class="k">ELSE</span> <span class="s">'closed'</span> <span class="k">END AS</span> open_state, …
+    <span class="k">FROM</span> vendor_opening_hours oh
+    <span class="k">WHERE</span> oh.vendor_id = v.vendor_id
+      <span class="k">AND</span> oh.hours_day_of_week = <span class="k">EXTRACT</span>(DOW <span class="k">FROM CURRENT_DATE</span>)
+) h <span class="k">ON TRUE</span>
+
+<span class="k">WHERE</span> v.vendor_status = <span class="s">'approved'</span>;   <span class="c">-- ← the safety net</span></pre>
+  </div>
+
+  <p>Three things to take from that:</p>
+  <ul>
+    <li><code>LEFT JOIN LATERAL</code> is a correlated subquery that can see the outer row (<code>v.vendor_id</code>) and returns columns like a join. <code>ON TRUE</code> is just the required join condition when the correlation already does the matching.</li>
+    <li><code>open_state</code> is three-valued: <code>'open'</code>, <code>'closed'</code>, or <strong><code>NULL</code></strong> when no hours row exists for today. Null means <em>unknown</em>, and the UI must render nothing rather than "Closed" — a shop shown as closed when it is open is a real cost to that business.</li>
+    <li>The final <code>WHERE</code> is why <code>GET /api/businesses/:slug</code> returns 404 for a pending shop without any explicit check in the route.</li>
+  </ul>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>View</th><th>Purpose</th><th>Notable</th></tr></thead>
+      <tbody>
+        <tr><td class="mono-col">v_business_cards</td><td>Public card projection for every list</td><td>Approved-only filter, rating, open state</td></tr>
+        <tr><td class="mono-col">v_search_trends_daily</td><td>Popular-search chips and admin trends</td><td><code>HAVING COUNT(*) &gt;= 5</code> — suppresses rare terms so one person's query cannot become a "popular search", and cannot re-identify them</td></tr>
+        <tr><td class="mono-col">v_active_users_daily</td><td>Distinct sessions per day</td><td>Counts session hashes, never accounts</td></tr>
+        <tr><td class="mono-col">v_moderation_queue</td><td>Admin queue</td><td><code>UNION ALL</code> of pending vendors + pending listings + open reports into one list</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Two design decisions worth being able to defend</h3>
+  <p><strong>CHECK constraints instead of ENUM types</strong> for every status column. Adding a value to a Postgres <code>ENUM</code> requires <code>ALTER TYPE</code>, which has transactional restrictions and is awkward in a migration. Amending a <code>CHECK</code> is one statement.</p>
+  <p><strong>Trigram (<code>pg_trgm</code>) GIN indexes</strong> on <code>vendor_name</code> and <code>listing_title</code> rather than full-text search. This is not a shortcut: PostgreSQL ships no Bengali text-search dictionary, so <code>to_tsvector</code> has no stemmer for half the content. Trigrams work on raw character sequences and are language-agnostic, so they handle <span class="bn">রাজশাহী</span> and "Rajshahi" the same way.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="connect">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Connecting to Postgres</h2></div>
+  <p class="sec-sub">Where the credentials live, how the pool is created, and what each failure code means.</p>
+
+  <h3>Step 1 — the credentials</h3>
+  <p>They live in <span class="pathname">backend/.env</span>, which is gitignored. Copy the example and fill in your own Postgres password:</p>
+
+  <div class="code">
+    <div class="code-label"><span>backend/.env</span><span class="who">never committed</span></div>
+<pre>PGHOST=localhost
+PGUSER=postgres
+PGPASSWORD=your-local-password   <span class="c"># ← nothing works until this is right</span>
+PGDATABASE=shahebbazar
+PGPORT=5432
+
+PORT=4000
+CORS_ORIGIN=http://localhost:3000</pre>
+  </div>
+
+  <h3>Step 2 — the pool</h3>
+  <p>The entire connection layer is eleven lines. <code>dotenv</code> loads the <code>.env</code> file into <code>process.env</code>, and <code>pg.Pool</code> reads it:</p>
+
+  <div class="code">
+    <div class="code-label"><span>backend/db.js</span><span class="who">the whole file</span></div>
+<pre><span class="k">const</span> { Pool } = <span class="k">require</span>(<span class="s">'pg'</span>);
+<span class="k">require</span>(<span class="s">'dotenv'</span>).config();
+
+<span class="k">const</span> pool = <span class="k">new</span> Pool({
+    host:     process.env.PGHOST,
+    user:     process.env.PGUSER,
+    password: process.env.PGPASSWORD,
+    database: process.env.PGDATABASE,
+    port:     process.env.PGPORT,
+});
+
+module.exports = pool;</pre>
+  </div>
+
+  <p>A <strong>pool</strong>, not a single connection. Opening a TCP connection to Postgres and authenticating costs tens of milliseconds; doing that per request would dominate the response time. The pool keeps a small set of connections open and hands one to each <code>pool.query()</code> call, returning it afterwards. Every route file does <code>require("../db")</code> and gets this same shared pool — Node caches modules, so there is exactly one pool in the process.</p>
+  <p>Note it connects <em>lazily</em>: creating the pool does not touch the database. The first failure you see will come from the first query, which is why the startup check in the next section exists.</p>
+
+  <h3>Step 3 — loading the schema</h3>
+  <p><code>npm run db:load</code> runs <span class="pathname">backend/scripts/load-db.js</span>, which does four things in order:</p>
+
+  <ol class="trace">
+    <li><span class="step db">1</span><div class="what"><strong>Checks all six SQL files exist</strong><p>Fails before touching the database rather than half way through.</p></div></li>
+    <li><span class="step db">2</span><div class="what"><strong>Connects to the <code>postgres</code> maintenance database</strong><p>You cannot <code>CREATE DATABASE</code> from inside the database you are creating, so it connects to <code>postgres</code> first. With <code>--reset</code> it also runs <code>pg_terminate_backend</code> to kick open connections — a single pgAdmin tab left open will otherwise block <code>DROP DATABASE</code>.</p></div></li>
+    <li><span class="step db">3</span><div class="what"><strong>Applies the six files in dependency order</strong><p>Each file wraps itself in <code>BEGIN … COMMIT</code>, so a file either applies completely or not at all.</p></div></li>
+    <li><span class="step db">4</span><div class="what"><strong>Prints row counts</strong><p>businesses / listings / categories / events / moderation queue — so a silent partial load is visible immediately.</p></div></li>
+  </ol>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th class="num">#</th><th>File</th><th>What it adds</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td class="mono-col">schema.v2.sql</td><td>Core: 18 tables, 3 views, the <code>pg_trgm</code> extension</td></tr>
+        <tr><td class="num">2</td><td class="mono-col">schema.v2.1.sql</td><td>Opening hours, events, saved businesses, and <code>v_business_cards</code></td></tr>
+        <tr><td class="num">3</td><td class="mono-col">seed.v2.sql</td><td>B2B sample merchants, locations, categories, RFQs</td></tr>
+        <tr><td class="num">4</td><td class="mono-col">seed.v2.1.sql</td><td>Consumer directory content for the home page</td></tr>
+        <tr><td class="num">5</td><td class="mono-col">schema.v2.2.sql</td><td><code>vendors.vendor_website</code> and the <code>vendor_facts</code> table</td></tr>
+        <tr><td class="num">6</td><td class="mono-col">seed.v2.2.sql</td><td>Profile detail: services, facts, written reviews</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The order is not arbitrary — <code>schema.v2.1.sql</code> must run before the seeds because <code>v_business_cards</code> is what the loader's row count reads from, and <code>schema.v2.2.sql</code> is additive on top of already-seeded data. <span class="pathname">database/schema.sql</span> and <span class="pathname">sampleinput.sql</span> are the superseded originals — <strong>do not run them</strong>.</p>
+
+  <h3>Step 4 — proving it worked</h3>
+  <p>Connecting successfully proves almost nothing: <code>SELECT NOW()</code> works fine against a completely empty database, while every data endpoint returns 500. So the API checks the schema separately, in one round trip:</p>
+
+  <div class="code">
+    <div class="code-label"><span>backend/lib/verifySchema.js</span><span class="who">core of it</span></div>
+<pre><span class="k">const</span> { rows } = <span class="k">await</span> pool.query(
+    <span class="s">`SELECT n AS name, to_regclass(n) IS NOT NULL AS present
+     FROM unnest($1::text[]) AS n`</span>, [names]
+);</pre>
+  </div>
+
+  <p><code>to_regclass()</code> returns <code>NULL</code> for a missing object instead of raising an error, so all fourteen required tables and views can be tested in a single query. Each name is mapped to the SQL file that defines it, so the error tells you what to run rather than just what is broken:</p>
+
+  <div class="code">
+    <div class="code-label"><span>GET /api/health</span><span class="who">503 response</span></div>
+<pre>{ "ok": false, "db": true,
+  "schema": { "ok": false,
+              "missing": [ { "name": "v_business_cards",
+                             "file": "schema.v2.1.sql" } ] },
+  "hint": "Database reachable but incomplete. … Run \"npm run db:load\"" }</pre>
+  </div>
+
+  <p>The same check also runs at startup (<code>reportSchemaAtStartup</code>), printing a table of missing objects into the <code>[api]</code> terminal before the first request ever arrives.</p>
+
+  <h3>Failure codes, decoded</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Code</th><th>Message</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td class="mono-col">ECONNREFUSED</td><td>Nothing listening on 5432</td><td>PostgreSQL service is not running</td></tr>
+        <tr><td class="mono-col">28P01</td><td>password authentication failed</td><td><code>PGPASSWORD</code> in <span class="pathname">backend/.env</span></td></tr>
+        <tr><td class="mono-col">3D000</td><td>database "shahebbazar" does not exist</td><td><code>npm run db:load</code> creates it</td></tr>
+        <tr><td class="mono-col">42P01</td><td>relation does not exist</td><td>Schema partly loaded — <code>npm run db:load</code></td></tr>
+        <tr><td class="mono-col">42P07</td><td>relation already exists</td><td>Loading over an existing schema — use <code>npm run db:reset</code></td></tr>
+        <tr><td class="mono-col">EADDRINUSE</td><td>Port 4000 already in use</td><td><code>npx kill-port 4000</code>. On Windows a leftover <code>node.exe</code> can keep listening after its terminal closes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="api">
+  <div class="sec-head"><span class="sec-num">04</span><h2>The backend</h2></div>
+  <p class="sec-sub">Express 5, CommonJS, no ORM. Raw parameterised SQL, five files.</p>
+
+  <h3>Boot sequence — <span class="pathname">backend/index.js</span></h3>
+  <p>Middleware in Express runs <em>in the order it is registered</em>, and each one either handles the request or calls the next. This order matters:</p>
+
+  <ol class="trace">
+    <li><span class="step api">1</span><div class="what"><strong><code>cors({ origin: allowedOrigins, credentials: true })</code></strong><p>Browsers refuse cross-origin responses unless the server says the origin is allowed. <code>CORS_ORIGIN</code> is a comma-separated list, deliberately never <code>*</code> — a wildcard is invalid for credentialed requests and would let any site read the session cookie once auth exists.</p></div></li>
+    <li><span class="step api">2</span><div class="what"><strong><code>express.json()</code></strong><p>Parses a JSON request body into <code>req.body</code>. Without it every POST handler sees <code>undefined</code>.</p></div></li>
+    <li><span class="step api">3</span><div class="what"><strong><code>express.static</code> on <code>/uploads</code></strong><p>Serves the files in <span class="pathname">backend/uploads/</span> directly over HTTP. This is what makes the paths stored in <code>listing_photos.photo_url</code> resolvable as image URLs in the browser.</p></div></li>
+    <li><span class="step api">4</span><div class="what"><strong>Three routers</strong><p><code>/api/vendors</code> → vendors router, then <code>/api</code> → listings router, then <code>/api</code> → public router. Order matters: a request for <code>/api/vendors/3/listings</code> hits the vendors router first, finds no match, and falls through to the listings router mounted at <code>/api</code>.</p></div></li>
+    <li><span class="step api">5</span><div class="what"><strong><code>/api/health</code> and <code>/</code></strong><p>Registered last, but no router claims those paths so they are reached.</p></div></li>
+    <li><span class="step api">6</span><div class="what"><strong><code>app.listen(PORT)</code> + schema report</strong><p>An <code>EADDRINUSE</code> handler prints the <code>npx kill-port</code> remedy and exits, instead of dumping a stack trace.</p></div></li>
+  </ol>
+
+  <h3>The public endpoints</h3>
+  <p>All of <span class="pathname">backend/routes/public.js</span> is read-only and returns approved rows only, either through an explicit status filter or by reading <code>v_business_cards</code>.</p>
+
+  <div class="defs">
+    <div class="def">
+      <div class="def-key">GET /api/health</div>
+      <div class="def-val"><p>Liveness plus schema completeness. 200 when usable, 503 otherwise.</p></div>
+    </div>
+    <div class="def">
+      <div class="def-key">GET /api/home</div>
+      <div class="def-val">
+        <p>Returns <code>{ categories, featured, events, popularSearches }</code> — everything the home page needs in one request.</p>
+        <p>Four queries issued <strong>concurrently</strong> via <code>Promise.all</code>, so the response takes as long as the slowest one rather than the sum of all four. Any single failure fails the whole response: a home page missing its featured shops should not be served as if it were valid.</p>
+        <p>The category tiles derive their subtitle by string-aggregating the first three <em>child</em> categories, rather than storing a caption — so renaming a subcategory can never leave a stale subtitle on the tile.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">GET /api/categories</div>
+      <div class="def-val"><p>The full active category tree, flat, with parent ids. The client assembles the hierarchy.</p></div>
+    </div>
+    <div class="def">
+      <div class="def-key">GET /api/businesses<br><span style="color:var(--soft)">?q &amp;category &amp;area &amp;sort &amp;limit &amp;offset</span></div>
+      <div class="def-val">
+        <p>Search and browse. Returns <code>{ results, sponsored, total, limit, offset, sort, facets }</code>. Five queries in parallel: organic page, sponsored, total count, area facets, category facets.</p>
+        <p>Sponsored rows come back in <strong>their own array</strong> — never merged into <code>results</code> — so the client structurally cannot render paid placement as an organic hit. They are also excluded from the organic query (<code>WHERE NOT vendor_is_featured</code>), so a featured shop cannot appear twice on one page, and they are limited to two rows on the first page only.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">GET /api/businesses/:slug</div>
+      <div class="def-val">
+        <p>One profile. Fetches the card row first (404 if absent), then fans out <strong>nine parallel queries</strong>: contact details, categories, opening hours, photos, listings, facts, reviews, rating distribution, and nearby similar shops.</p>
+        <p>Addressed by slug, not id, so URLs read <code>/business/rajshahi-silk-house</code> — descriptive and indexable.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Three techniques in the search endpoint worth understanding</h3>
+
+  <h4>Parameterised SQL — why <code>$1</code> and never string concatenation</h4>
+  <div class="code">
+    <div class="code-label"><span>backend/routes/public.js</span><span class="who">the q filter</span></div>
+<pre>if (q) {
+    params.push(<span class="s">`%${q}%`</span>);
+    where.push(<span class="s">`(
+        v_business_cards.vendor_name ILIKE $${params.length}
+        OR v_business_cards.vendor_name_bn ILIKE $${params.length}
+        OR v_business_cards.vendor_description ILIKE $${params.length}
+        OR EXISTS (
+            SELECT 1 FROM vendor_listings l
+            WHERE l.vendor_id = v_business_cards.vendor_id
+              AND l.listing_status = 'approved'
+              AND (l.listing_title ILIKE $${params.length}
+                   OR l.listing_title_bn ILIKE $${params.length})
+        )
+    )`</span>);
+}</pre>
+  </div>
+  <p>The user's text goes into the <code>params</code> array and the SQL only ever contains the placeholder <code>$1</code>. Postgres receives the query and the values separately, so a search for <code>'; DROP TABLE vendors; --</code> is looked up as a literal shop name. That is SQL injection prevention, and it is not optional.</p>
+  <p>Note also the <code>EXISTS</code> subquery: searching matches a shop's <em>listing titles</em> as well as its name, so a query for "silk saree" finds a shop called Rajshahi Textiles.</p>
+
+  <h4>The whitelist that lets you sort safely</h4>
+  <div class="code">
+    <div class="code-label"><span>backend/routes/public.js</span><span class="who">sort resolution</span></div>
+<pre><span class="k">const</span> SORTS = {
+    relevance: <span class="s">"vendor_is_featured DESC, rating DESC, review_count DESC, vendor_name"</span>,
+    rating:    <span class="s">"rating DESC, review_count DESC, vendor_name"</span>,
+    reviews:   <span class="s">"review_count DESC, rating DESC, vendor_name"</span>,
+    name:      <span class="s">"vendor_name"</span>,
+};
+<span class="k">const</span> sort = SORTS[req.query.sort] ? req.query.sort : <span class="s">"relevance"</span>;</pre>
+  </div>
+  <p>An <code>ORDER BY</code> clause <em>cannot</em> be parameterised — <code>$1</code> only stands in for values, not for identifiers. So the incoming <code>sort</code> string is used as a key into a fixed object, and anything unrecognised silently becomes <code>relevance</code>. The user's text never reaches the SQL. The same problem with <code>LIMIT</code>/<code>OFFSET</code> is handled by clamping: <code>Math.min(parseInt(…) || 20, 50)</code> — an integer, capped, so a request for a million rows cannot exhaust the database.</p>
+
+  <h4>Facets that narrow as you filter</h4>
+  <p>The sidebar counts ("Kazla 12, Laxmipur 8") are computed against the <em>currently active</em> filter, by reusing the same <code>where</code> clause with the view aliased as <code>b</code>:</p>
+  <div class="code">
+    <div class="code-label"><span>backend/routes/public.js</span><span class="who">facet reuse</span></div>
+<pre>${whereSql ? whereSql.replace(/v_business_cards/g, <span class="s">"b"</span>) : <span class="s">""</span>}</pre>
+  </div>
+  <p>This is why the filter conditions were written with fully table-qualified column names in the first place: the facet queries join <code>vendors</code>, where a bare <code>vendor_name</code> would be ambiguous, and the qualifier can simply be rewritten to the alias.</p>
+
+  <h3>Error responses that help without leaking</h3>
+  <div class="code">
+    <div class="code-label"><span>backend/routes/public.js</span><span class="who">errorBody()</span></div>
+<pre>function errorBody(message, err) {
+    if (process.env.NODE_ENV === <span class="s">"production"</span>) return { error: message };
+    return {
+        error: message,
+        detail: err.message,
+        hint: err.code === <span class="s">"42P01"</span>
+            ? <span class="s">"A table or view is missing. Run `npm run db:load`."</span>
+            : undefined,
+    };
+}</pre>
+  </div>
+  <p>In development you get the real Postgres message and a remedy. In production you get only the summary, because a raw database error names your tables and columns to anyone who can trigger it.</p>
+
+  <h3>File uploads — <span class="pathname">routes/vendorListings.js</span></h3>
+  <p><code>multer</code> handles <code>multipart/form-data</code>. Files are written to <span class="pathname">backend/uploads/</span> under a generated name (<code>Date.now()</code> + a random number + the original extension) so two people uploading <code>photo.jpg</code> do not collide, and a <code>fileFilter</code> rejects anything that is not JPEG or PNG. The path is then inserted into <code>listing_photos.photo_url</code>, and <code>express.static</code> serves it back.</p>
+
+  <div class="note">
+    <p class="note-title">Dependency present, never used</p>
+    <p><code>socket.io</code> is in <span class="pathname">backend/package.json</span> but is not imported anywhere. It was presumably intended for the real-time messaging feature. Nothing depends on it today.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="web">
+  <div class="sec-head"><span class="sec-num">05</span><h2>The frontend</h2></div>
+  <p class="sec-sub">Next.js 16 App Router, TypeScript, Tailwind 4. Server-rendered, bilingual, and built to be crawlable.</p>
+
+  <h3>Route groups — four folders for three roles</h3>
+  <p>A folder in parentheses is a <strong>route group</strong>: it organises files without contributing a URL segment. So <span class="pathname">app/(public)/page.tsx</span> serves <code>/</code>, not <code>/public</code>.</p>
+
+  <div class="panel">
+    <h4>app/</h4>
+<pre class="tree"><b>layout.tsx</b>              <i>&lt;html&gt;, fonts, site-wide metadata</i>
+<b>(public)/</b>               <i>BROWSING — readable signed out, crawlable</i>
+  page.tsx                <i>/</i>
+  search/page.tsx         <i>/search</i>
+  business/[slug]/        <i>/business/&lt;slug&gt;</i>
+  vendors/register/       <i>/vendors/register</i>
+<b>(seeker)/</b>               <i>CUSTOMER — signed in, role 'customer'</i>
+  layout.tsx              <i>auth gate (TODO)</i>
+  account/                <i>/account</i>
+<b>(provider)/</b>             <i>SHOP OWNER — signed in, role 'vendor'</i>
+  layout.tsx              <i>auth gate (TODO)</i>
+  vendors/dashboard/      <i>/vendors/dashboard</i>
+<b>(admin)/</b>                <i>PLATFORM ADMIN — signed in, role 'admin'</i>
+  layout.tsx              <i>stricter gate (TODO)</i>
+  admin/                  <i>/admin</i></pre>
+  </div>
+
+  <p>Four groups for three roles, because <strong>the customer has two halves that need different gates</strong>. <code>(public)</code> is the customer browsing — search, categories, shop profiles — which must stay readable signed out and indexable. <code>(seeker)</code> is the same person signed in: saved shops, their quote requests, messages, their reviews.</p>
+  <p>Splitting on the <em>access rule</em> rather than on the person buys two things. Public URLs stay clean — a shop is <code>/business/rajshahi-silk-house</code>, not <code>/customer/business/…</code>. And there is one gate per area: the auth check lives in the group's <code>layout.tsx</code>, so every page in the folder is protected by default and nobody has to remember to add a check to a new screen.</p>
+  <p>Registration sits in <code>(public)</code> on purpose — you are not a vendor yet when you sign up, so it must be outside the provider gate.</p>
+
+  <div class="note broken">
+    <p class="note-title">All three gates are empty</p>
+    <p>Every <code>layout.tsx</code> in <code>(seeker)</code>, <code>(provider)</code> and <code>(admin)</code> contains a <code>TODO(auth)</code> comment and <code>return children</code>. Anyone can open <code>/admin</code> and <code>/vendors/dashboard</code> today. The intended code is written out in the comments and waits only on sessions existing.</p>
+  </div>
+
+  <h3>The layout chain, and the one thing it cannot do</h3>
+  <p>Next composes layouts outward-in: the root <span class="pathname">app/layout.tsx</span> renders <code>&lt;html&gt;</code>, the Geist font variable and the site-wide metadata; the group layout wraps the page. But <strong>layouts do not receive <code>searchParams</code></strong> — and the language in this app is a query parameter (<code>?lang=bn</code>).</p>
+  <p>That is the whole reason <code>AppShell</code> exists as a component instead of a layout. Each page resolves the locale itself and passes it down:</p>
+
+  <div class="code">
+    <div class="code-label"><span>app/(public)/page.tsx</span><span class="who">the pattern every public page follows</span></div>
+<pre>export default async function HomePage({ searchParams }: {
+    <span class="c">// a Promise in Next 15+, so it must be awaited</span>
+    searchParams: Promise&lt;{ lang?: string }&gt;;
+}) {
+    <span class="k">const</span> [{ lang }, data] = <span class="k">await</span> Promise.all([searchParams, getHomeData()]);
+    <span class="k">const</span> locale = resolveLocale(lang);
+
+    <span class="k">return</span> (
+        &lt;AppShell locale={locale} current=<span class="s">"/"</span>&gt;
+            &lt;Hero locale={locale} /&gt;
+            &lt;CategoryGrid locale={locale} categories={data.categories} /&gt;
+            &lt;FeaturedBusinesses locale={locale} businesses={data.featured} /&gt;
+            …
+        &lt;/AppShell&gt;
+    );
+}</pre>
+  </div>
+
+  <p>Two details there. <code>Promise.all([searchParams, getHomeData()])</code> resolves the params and the network call together rather than one after the other. And there is no <code>useEffect</code>, no state, no loading branch — the function returns finished markup.</p>
+
+  <h3>The four <span class="pathname">lib/</span> files</h3>
+
+  <div class="defs">
+    <div class="def">
+      <div class="def-key">lib/api.ts</div>
+      <div class="def-val">
+        <p>The only place in the frontend that knows the API exists. Three functions — <code>getHomeData()</code>, <code>searchBusinesses()</code>, <code>getBusiness(slug)</code> — plus <code>assetUrl()</code>. All run on the server.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">lib/types.ts</div>
+      <div class="def-val">
+        <p>The API contract as TypeScript interfaces, with field names matching the database columns exactly. Rename a column in Express without updating this and <code>npm run typecheck</code> fails — the mismatch surfaces as a compile error rather than as blank fields at runtime.</p>
+        <p>One footgun documented here: <strong><code>pg</code> returns <code>NUMERIC</code> as a string</strong>, not a number, because JavaScript's float cannot represent every <code>NUMERIC</code> exactly. So <code>rating</code> is typed <code>string | number</code> and must go through <code>toNumber()</code> before any comparison — <code>"4.5" &gt; 4</code> is a string comparison and will surprise you.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">lib/i18n.ts</div>
+      <div class="def-val">
+        <p>Every string in English and Bangla, plus three helpers: <code>resolveLocale()</code> reads <code>?lang=</code>, <code>localeHref()</code> appends it to a link so the language survives navigation, and <code>pick(locale, en, bn)</code> chooses a database field and <em>falls back to the other language</em> if the translation is null — a field is never rendered empty.</p>
+        <p>No hardcoded English in JSX. That is a hard rule here.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">lib/format.ts</div>
+      <div class="def-val">
+        <p>Display formatting, server-side only. <code>toNumber</code>, <code>formatRating</code>, <code>formatClockTime</code> (SQL <code>TIME</code> → "9:30 AM"), event date helpers pinned to <code>Asia/Dhaka</code>, and <code>localiseDigits</code>, which maps ASCII digits to Bengali numerals (<span class="bn">০১২৩৪৫৬৭৮৯</span>) when the Bangla locale is active.</p>
+        <p>Timezone is pinned deliberately: formatting the same date on the server and again in the browser produces a hydration mismatch whenever the two timezones differ.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Forms that work without JavaScript</h3>
+  <p>The header search and the search-page filters are plain <code>&lt;form action="/search" method="get"&gt;</code>. Submitting one navigates to <code>/search?q=silk&amp;category=textiles&amp;area=kazla</code>, which the server renders. No client state, no fetch, no <code>onSubmit</code>.</p>
+  <p>Three consequences, all of them wanted: every filter combination is a distinct URL that can be bookmarked, shared and crawled; the pages stay server components; and the site works with JavaScript disabled. The locale rides along as a hidden field so <code>?lang=bn</code> is not lost on submit.</p>
+
+  <h3>Styling — Tailwind 4 tokens</h3>
+  <p>Design tokens are declared in the <code>@theme</code> block of <span class="pathname">app/globals.css</span>, and Tailwind generates utilities from them: <code>--color-brand-600</code> produces <code>bg-brand-600</code>, <code>text-brand-600</code> and <code>border-brand-600</code>. Components use those utilities, never raw hex and never new CSS classes.</p>
+  <p>Two traps documented in the repo, both of which have already cost someone an afternoon:</p>
+  <ul>
+    <li><strong>Class names must appear complete in the source.</strong> Tailwind scans files as text, so <code>`bg-${colour}-50`</code> is never generated. Write the full strings out.</li>
+    <li><strong>Plain CSS outside <code>@layer</code> beats utility classes.</strong> A <code>padding</code> shorthand in an unlayered rule silently overrode <code>pl-11</code> and pushed the search text underneath its own icon.</li>
+  </ul>
+  <p>Icons come from two libraries on purpose: <code>lucide-react</code> for all UI icons, imported directly so tree-shaking drops the rest; <code>@icons-pack/react-simple-icons</code> for brand marks only (Facebook, WhatsApp), because Lucide removed trademarked logos. <span class="pathname">components/shared/icons.ts</span> exists solely for <code>categories.category_icon</code>, which is a string in the database and so can only be resolved at runtime.</p>
+
+  <h3>SEO, which is a client requirement rather than a nicety</h3>
+  <ul>
+    <li><strong>Per-page metadata.</strong> The profile page's <code>generateMetadata()</code> builds a title from the shop's real name, category and area, and emits per-business OpenGraph tags with the cover photo for link previews.</li>
+    <li><strong>Structured data.</strong> The home page emits <code>WebSite</code> JSON-LD with a <code>SearchAction</code> (this is what produces a sitelinks search box). The profile page emits <code>LocalBusiness</code> with address, geo coordinates, opening hours and aggregate rating.</li>
+    <li><strong>Only populated fields are emitted.</strong> An <code>aggregateRating</code> with a zero review count is invalid structured data and is reported as an <em>error</em> by search engines rather than ignored — so it is omitted when <code>reviewCount === 0</code>.</li>
+    <li><strong>Search results are <code>noindex, follow</code>.</strong> Arbitrary queries would generate unbounded near-duplicate pages, but links are still followed so the profiles get discovered.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="seam">
+  <div class="sec-head"><span class="sec-num">06</span><h2>How the two halves connect</h2></div>
+  <p class="sec-sub">One environment variable, one fetch wrapper, and a deliberate split between what the server can reach and what the browser can.</p>
+
+  <h3>The two base URLs, and why there are two</h3>
+  <div class="defs">
+    <div class="def">
+      <div class="def-key">API_BASE_URL<br><span style="color:var(--soft)">no NEXT_PUBLIC_ prefix</span></div>
+      <div class="def-val">
+        <p>Where the <strong>Next server</strong> reaches Express. Because it lacks the <code>NEXT_PUBLIC_</code> prefix, Next never sends it to the browser — it exists only in the server process. In Docker this becomes the service name, e.g. <code>http://api:4000</code>, a hostname no browser could ever resolve.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">NEXT_PUBLIC_ASSET_BASE_URL</div>
+      <div class="def-val">
+        <p>Where the <strong>browser</strong> loads uploaded images from. This one <em>is</em> exposed, because it ends up in an <code>&lt;img src&gt;</code> that the user's browser must fetch itself.</p>
+      </div>
+    </div>
+    <div class="def">
+      <div class="def-key">NEXT_PUBLIC_SITE_URL</div>
+      <div class="def-val">
+        <p>The public site address, used for canonical links, JSON-LD URLs and OpenGraph cards. Leaving this as <code>localhost</code> in production breaks every share preview.</p>
+      </div>
+    </div>
+  </div>
+
+  <p>That split is the whole point of the <code>NEXT_PUBLIC_</code> convention: anything with the prefix is inlined into the JavaScript bundle and is public; anything without it stays on the server.</p>
+
+  <h3>The fetch wrapper</h3>
+  <div class="code">
+    <div class="code-label"><span>frontend/lib/api.ts</span><span class="who">every request goes through this</span></div>
+<pre><span class="k">const</span> API_BASE = process.env.API_BASE_URL || <span class="s">"http://localhost:4000"</span>;
+
+<span class="k">async function</span> getJson&lt;T&gt;(path: string, revalidateSeconds: number): Promise&lt;T&gt; {
+    <span class="k">const</span> res = <span class="k">await</span> fetch(<span class="s">`${API_BASE}${path}`</span>, {
+        next: { revalidate: revalidateSeconds },
+        headers: { Accept: <span class="s">"application/json"</span> },
+    });
+    <span class="k">if</span> (!res.ok) <span class="k">throw new</span> ApiError(res.status, path);
+    <span class="k">return</span> res.json() <span class="k">as</span> Promise&lt;T&gt;;
+}</pre>
+  </div>
+
+  <p><code>next: { revalidate: n }</code> is Next's data cache. The response is cached for <code>n</code> seconds; concurrent visitors within that window are served from cache and the API is not called again. Three different windows, chosen by how fast the data changes:</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Function</th><th>Endpoint</th><th class="num">Cache</th><th>On failure</th></tr></thead>
+      <tbody>
+        <tr><td class="mono-col">getHomeData()</td><td class="mono-col">/api/home</td><td class="num">300s</td><td>Returns empty arrays — page renders its shell</td></tr>
+        <tr><td class="mono-col">searchBusinesses()</td><td class="mono-col">/api/businesses</td><td class="num">60s</td><td>Returns an empty result set</td></tr>
+        <tr><td class="mono-col">getBusiness()</td><td class="mono-col">/api/businesses/:slug</td><td class="num">300s</td><td><code>null</code> on 404 → <code>notFound()</code>; <strong>throws</strong> on anything else</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Two different failure policies, on purpose</h3>
+  <p><code>getHomeData()</code> swallows errors and returns empty collections. If the API is down, the visitor still gets a working header, search box, navigation and footer — degraded, not broken.</p>
+  <p><code>getBusiness()</code> does the opposite and rethrows anything that is not a 404. A profile page rendered with half its data missing would look complete and be wrong; better to fail loudly. A genuine 404 becomes Next's <code>notFound()</code>, giving a proper 404 status — which matters, because a "not found" page returning HTTP 200 gets indexed as a real page.</p>
+
+  <h3>assetUrl — the path fixer</h3>
+  <div class="code">
+    <div class="code-label"><span>frontend/lib/api.ts</span></div>
+<pre>export function assetUrl(storedPath: string | null): string | null {
+    <span class="k">if</span> (!storedPath) <span class="k">return null</span>;
+    <span class="k">if</span> (/^https?:\/\//i.test(storedPath)) <span class="k">return</span> storedPath;  <span class="c">// already absolute</span>
+    <span class="k">const</span> base = process.env.NEXT_PUBLIC_ASSET_BASE_URL || API_BASE;
+    <span class="k">return</span> <span class="s">`${base}/${storedPath.replace(/^\/+/, "").replace(/\\/g, "/")}`</span>;
+}</pre>
+  </div>
+  <p>The database stores a relative path like <code>uploads/1788451854562-688168547.jpg</code>; the browser needs <code>http://localhost:4000/uploads/…</code>. The final <code>replace(/\\/g, "/")</code> is a Windows patch: the upload route stores <code>file.path</code>, which on Windows contains a backslash and is not a valid URL. Fixing it at the source (storing a URL path at insert time) is on the to-do list.</p>
+
+  <div class="note">
+    <p class="note-title">The legacy pages break this rule</p>
+    <p>The four <code>"use client"</code> vendor pages call <code>fetch("http://localhost:4000/api/…")</code> directly from the browser, with the URL hardcoded. That is the older pattern, it bypasses <code>lib/api.ts</code> entirely, it is the reason <code>CORS_ORIGIN</code> has to be configured at all, and it will break the moment the app is deployed anywhere other than localhost.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="traces">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Four full traces</h2></div>
+  <p class="sec-sub">The same journey followed all the way down and back, four times.</p>
+
+  <h3>A · Someone opens the home page</h3>
+  <ol class="trace">
+    <li><span class="step web">1</span><div class="what"><strong>Browser requests <code>GET /</code></strong><p>Next matches <span class="pathname">app/(public)/page.tsx</span>. The route group contributes no URL segment.</p></div></li>
+    <li><span class="step web">2</span><div class="what"><strong><code>HomePage()</code> runs on the server</strong><p>Awaits <code>searchParams</code> and <code>getHomeData()</code> together.</p></div></li>
+    <li><span class="step web">3</span><div class="what"><strong>Cache check</strong><p>If <code>/api/home</code> was fetched under 300 seconds ago, the cached JSON is used and steps 4–7 are skipped entirely.</p></div></li>
+    <li><span class="step api">4</span><div class="what"><strong>Server-side <code>fetch("http://localhost:4000/api/home")</code></strong><p>Node to Node. The browser never sees this request, and no CORS check applies — CORS is a browser rule.</p></div></li>
+    <li><span class="step api">5</span><div class="what"><strong>Express matches the public router</strong><p>Fires four queries with <code>Promise.all</code>.</p></div></li>
+    <li><span class="step db">6</span><div class="what"><strong>Postgres runs them concurrently</strong><p>Category tiles with derived subtitles; five featured cards from <code>v_business_cards</code>; three upcoming published events; the top eight search terms from <code>v_search_trends_daily</code>.</p></div></li>
+    <li><span class="step api">7</span><div class="what"><strong>Express replies with one JSON object</strong><p><code>{ categories, featured, events, popularSearches }</code>.</p></div></li>
+    <li><span class="step web">8</span><div class="what"><strong>React renders to HTML on the server</strong><p><code>AppShell</code> → header, side nav, hero, category grid, featured cards, sidebar rails, footer. <code>pick()</code> chooses English or Bangla per field; <code>assetUrl()</code> rewrites every cover path to an absolute URL.</p></div></li>
+    <li><span class="step web">9</span><div class="what"><strong>Complete HTML goes to the browser</strong><p>Every shop name and rating is already in the markup, plus the <code>WebSite</code> JSON-LD block. Googlebot needs to run nothing.</p></div></li>
+  </ol>
+
+  <h3>B · Someone searches "silk" and filters to Kazla</h3>
+  <ol class="trace">
+    <li><span class="step web">1</span><div class="what"><strong>The header form submits</strong><p>A plain GET form → <code>/search?q=silk</code>. Choosing an area in the filter bar resubmits as <code>/search?q=silk&amp;area=kazla</code>. The search term rides along as a hidden field so it survives the filter change.</p></div></li>
+    <li><span class="step web">2</span><div class="what"><strong><code>SearchPage</code> computes the page window</strong><p><code>page=2</code> → <code>offset = 20</code> at a fixed page size of 20. It fetches the search results <em>and</em> <code>getHomeData()</code> — the category dropdown reuses the already-cached home payload rather than making a second request for it.</p></div></li>
+    <li><span class="step api">3</span><div class="what"><strong><code>GET /api/businesses?q=silk&amp;area=kazla&amp;limit=20&amp;offset=20</code></strong><p>Express builds the <code>where</code> array and <code>params</code> array together, resolves <code>sort</code> through the whitelist, and clamps limit and offset to integers.</p></div></li>
+    <li><span class="step db">4</span><div class="what"><strong>Five queries at once</strong><p>Organic page (<code>WHERE NOT vendor_is_featured</code>), up to two sponsored rows (offset 0 only — this is page 2, so none), the total count including sponsored, area facets, category facets.</p></div></li>
+    <li><span class="step web">5</span><div class="what"><strong>The page renders three distinct blocks</strong><p>A labelled sponsored list on top, then organic results, then the facet sidebar. If both arrays are empty it renders the "no results" panel with a clear-all link instead.</p></div></li>
+    <li><span class="step web">6</span><div class="what"><strong>Pagination is derived, not counted</strong><p><code>hasMore = results.length === PAGE_SIZE</code>, because <code>total</code> includes sponsored rows that are not part of the paginated set.</p></div></li>
+  </ol>
+
+  <h3>C · Someone opens a shop profile</h3>
+  <ol class="trace">
+    <li><span class="step web">1</span><div class="what"><strong><code>GET /business/rajshahi-silk-house</code></strong><p>Matches <span class="pathname">app/(public)/business/[slug]/page.tsx</span>. <code>generateMetadata()</code> runs first and calls <code>getBusiness(slug)</code> — the second call from the page body hits the same cache entry, so this is one network request, not two.</p></div></li>
+    <li><span class="step api">2</span><div class="what"><strong>Express looks the slug up in <code>v_business_cards</code></strong><p>Joined to <code>vendors</code> for the coordinates the card view omits. No row → <code>404</code>. Since the view is approved-only, a pending shop 404s without any explicit status check.</p></div></li>
+    <li><span class="step db">3</span><div class="what"><strong>Nine parallel queries</strong><p>Contact details · categories · opening hours · gallery photos (drawn from approved listings) · listings · facts · the five most recent written reviews · the 1–5 rating distribution · four nearby shops sharing a category.</p></div></li>
+    <li><span class="step db">4</span><div class="what"><strong>Distance without PostGIS</strong><p>Nearby shops are ordered by an equirectangular approximation: <code>111.045 × √(Δlat² + (Δlng × cos(lat))²)</code>. Accurate enough across one city, and it avoids a PostGIS dependency for a single sort.</p></div></li>
+    <li><span class="step api">5</span><div class="what"><strong>Rating distribution is filled in</strong><p>Postgres returns only the ratings that occur; Express maps them onto <code>[5,4,3,2,1]</code> with zeros, so the bar chart always has five bars.</p></div></li>
+    <li><span class="step web">6</span><div class="what"><strong>Profile and sidebar render, plus JSON-LD</strong><p><code>LocalBusiness</code> structured data with address, geo, opening hours per day, and — only if there is at least one review — an <code>aggregateRating</code>.</p></div></li>
+  </ol>
+
+  <h3>D · A vendor adds a listing with photos <span class="chip warn">legacy path</span></h3>
+  <ol class="trace">
+    <li><span class="step web">1</span><div class="what"><strong>A client component, in the browser</strong><p><span class="pathname">add-listing/page.jsx</span> is <code>"use client"</code> with <code>useState</code> form state. This is the old pattern and it is the only write path in the app.</p></div></li>
+    <li><span class="step api">2</span><div class="what"><strong><code>POST /api/vendors/:vendorId/listings</code></strong><p>Sent from the browser to a hardcoded <code>http://localhost:4000</code>, as JSON. Because it is cross-origin (3000 → 4000), the browser applies CORS — which is why <code>CORS_ORIGIN</code> must list <code>http://localhost:3000</code>.</p></div></li>
+    <li><span class="step db">3</span><div class="what"><strong>Insert, returning the new id</strong><p><code>INSERT … RETURNING listing_id</code> — one round trip to write the row and learn its id, which the next step needs.</p></div></li>
+    <li><span class="step api">4</span><div class="what"><strong><code>POST /api/listings/:listingId/photos</code></strong><p>A second request, this time <code>multipart/form-data</code>. Multer writes each file to <span class="pathname">backend/uploads/</span> under a generated name and rejects anything that is not JPEG or PNG.</p></div></li>
+    <li><span class="step db">5</span><div class="what"><strong>One <code>listing_photos</code> row per file</strong><p>Then <code>express.static</code> serves them back at <code>/uploads/&lt;name&gt;</code>.</p></div></li>
+  </ol>
+
+  <div class="note broken">
+    <p class="note-title">This trace does not currently work</p>
+    <p>Steps 3 and 5 fail against the v2 schema. The insert names <code>title</code>, <code>description</code>, <code>price</code> and <code>category</code> — columns that existed in the superseded <span class="pathname">database/schema.sql</span> and are now <code>listing_title</code>, <code>listing_description</code>, <code>listing_price</code> and <code>category_id</code>. Postgres answers <code>42703: column "title" of relation "vendor_listings" does not exist</code>. See the next section.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="gaps">
+  <div class="sec-head"><span class="sec-num">08</span><h2>What is broken, and what is simply missing</h2></div>
+  <p class="sec-sub">Tracked here so nobody rediscovers them. Broken means it throws today; missing means it was never built.</p>
+
+  <h3>Broken: the two legacy routes still speak the old schema</h3>
+  <p>Both were written against <span class="pathname">database/schema.sql</span>, which <code>schema.v2.sql</code> replaced. The columns moved and nothing updated the SQL.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Route</th><th>Sends</th><th>v2 expects</th></tr></thead>
+      <tbody>
+        <tr><td class="mono-col">POST /api/vendors</td><td class="mono-col">vendor_password</td><td>Not a column. Credentials belong on <code>users</code>, hashed</td></tr>
+        <tr><td class="mono-col"></td><td class="mono-col">vendor_city</td><td><code>location_id</code>, resolved against <code>locations</code></td></tr>
+        <tr><td class="mono-col"></td><td class="mono-col">— nothing —</td><td><code>vendor_slug</code> is <code>NOT NULL UNIQUE</code>; <code>user_id</code> is <code>NOT NULL</code></td></tr>
+        <tr><td class="mono-col">POST /…/listings</td><td class="mono-col">title, description, price, category</td><td><code>listing_title</code>, <code>listing_description</code>, <code>listing_price</code>, <code>category_id</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Two further problems in the same area:</p>
+  <ul>
+    <li><code>GET /api/vendors</code> does <code>SELECT * FROM vendors</code> with no status filter. On the v2 table that now returns <code>vendor_rejection_reason</code> and moderation state to any anonymous caller. It needs <code>WHERE vendor_status = 'approved'</code> and an explicit column list.</li>
+    <li>The photo insert stores <code>file.path</code> — an OS-specific path with a backslash on Windows. It should store a URL path (<code>uploads/&lt;filename&gt;</code>), which is the form the seed data assumes and what <code>assetUrl()</code> currently patches around.</li>
+  </ul>
+  <p><span class="pathname">database/SCHEMA-NOTES.md</span> §4 spells out the fix route by route and estimates it at about an hour.</p>
+
+  <h3>Missing: authentication, and everything waiting behind it</h3>
+  <p><code>users</code>, <code>otp_codes</code> and <code>sessions</code> exist in the schema. Nothing writes to them. Consequently:</p>
+  <ul>
+    <li>All three role gates are empty <code>return children</code>. <code>/admin</code> and <code>/vendors/dashboard</code> are open to anyone. <strong>This must not ship.</strong></li>
+    <li>The bookmark button on every business card links to <code>/login</code>, which does not exist — the <code>saved_businesses</code> table is ready and unused.</li>
+    <li>RFQ, messaging, reviews and the whole admin surface all wait on knowing who the user is.</li>
+    <li>The vendor dashboard fills a <code>&lt;select&gt;</code> with <em>every</em> vendor and auto-selects the first, because there is no session to say which vendor you are.</li>
+  </ul>
+
+  <h3>Missing: pages linked in the navigation but never built</h3>
+  <p>Categories, deals, events and blog appear in the nav and in sidebar links, and they 404. <code>/admin</code> and <code>/account</code> render placeholder pages that document what belongs there and which tables back it.</p>
+
+  <h3>Known limitations, accepted for now</h3>
+  <ul>
+    <li><strong>Language is <code>?lang=bn</code>.</strong> Reading a search parameter opts a page out of static generation. Crawling is unaffected — the server-rendered markup is complete either way — but the static cache is not used. Locale-prefixed routes (<code>/en</code>, <code>/bn</code>) are the fix, and would also give each language a distinct indexable URL.</li>
+    <li><strong>Maps are hand-drawn SVG sketches</strong>, not real maps. A live map needs an API key the client has not provided; Leaflet with OpenStreetMap tiles needs no key and is the intended swap.</li>
+    <li><strong><code>/api/home</code> is cached for five minutes.</strong> After changing seed data, restart the frontend or delete <span class="pathname">frontend/shahebbazar/.next</span> — otherwise you will spend twenty minutes debugging a stale payload.</li>
+    <li><strong>No ER diagram yet</strong>, though it is a required deliverable. It can be generated from the schema with pgAdmin's ERD tool or dbdiagram.io.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="filemap">
+  <div class="sec-head"><span class="sec-num">09</span><h2>File map</h2></div>
+  <p class="sec-sub">Where to look when you need to change something.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>To change…</th><th>Open</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>Database connection settings</td><td class="mono-col">backend/.env</td><td><span class="chip db">DB</span></td></tr>
+        <tr><td>Tables, columns, views</td><td class="mono-col">database/schema.v2*.sql</td><td><span class="chip db">DB</span></td></tr>
+        <tr><td>Sample data</td><td class="mono-col">database/seed.v2*.sql</td><td><span class="chip db">DB</span></td></tr>
+        <tr><td>How the database is loaded</td><td class="mono-col">backend/scripts/load-db.js</td><td><span class="chip db">DB</span></td></tr>
+        <tr><td>Public API behaviour or SQL</td><td class="mono-col">backend/routes/public.js</td><td><span class="chip api">API</span></td></tr>
+        <tr><td>Vendor registration, listings, uploads</td><td class="mono-col">backend/routes/vendors.js<br>backend/routes/vendorListings.js</td><td><span class="chip api">API</span></td></tr>
+        <tr><td>Middleware, CORS, health check</td><td class="mono-col">backend/index.js</td><td><span class="chip api">API</span></td></tr>
+        <tr><td>Which tables the API requires</td><td class="mono-col">backend/lib/verifySchema.js</td><td><span class="chip api">API</span></td></tr>
+        <tr><td>Anything the frontend fetches</td><td class="mono-col">frontend/…/lib/api.ts</td><td><span class="chip web">Web</span></td></tr>
+        <tr><td>Response shapes (after an API change)</td><td class="mono-col">frontend/…/lib/types.ts</td><td><span class="chip web">Web</span></td></tr>
+        <tr><td>Any user-facing text</td><td class="mono-col">frontend/…/lib/i18n.ts</td><td><span class="chip web">Web</span></td></tr>
+        <tr><td>Colours, fonts, shadows</td><td class="mono-col">frontend/…/app/globals.css</td><td><span class="chip web">Web</span></td></tr>
+        <tr><td>Home page composition</td><td class="mono-col">app/(public)/page.tsx</td><td><span class="chip web">Web</span></td></tr>
+        <tr><td>Search page and filters</td><td class="mono-col">app/(public)/search/page.tsx</td><td><span class="chip web">Web</span></td></tr>
+        <tr><td>Shop profile</td><td class="mono-col">app/(public)/business/[slug]/page.tsx</td><td><span class="chip web">Web</span></td></tr>
+        <tr><td>Role gates (when auth lands)</td><td class="mono-col">app/(seeker|provider|admin)/layout.tsx</td><td><span class="chip web">Web</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Ownership, per the team split: <code>(admin)</code> and <span class="pathname">components/admin/</span> are the admin work; <code>(public)</code>, <code>(provider)</code> and their component folders are the customer and shop-owner work. New files go in the folder for their role — that is the entire point of the split.</p>
+
+  <hr class="rule">
+
+  <footer class="end">
+    <p>Sources: <span class="pathname">README.md</span>, <span class="pathname">database/SCHEMA-NOTES.md</span>, <span class="pathname">docs/REQUIREMENTS.md</span> and the code itself. Where this guide and a code comment disagree, the code is the truth — check the file before acting on it.</p>
+  </footer>
+</section>
+
+</article>
+</div>

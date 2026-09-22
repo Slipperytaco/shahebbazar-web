@@ -4,11 +4,11 @@ import { t, type Locale } from "@/lib/i18n";
 import type { CategoryTile, Facet } from "@/lib/types";
 
 /**
- * The filter bar and the active-filter chips.
+ * Search filter controls and active filter indicators.
  *
- * Every control is a plain GET form or a link. No client-side state, so
- * the page stays a server component, every filtered view has its own
- * shareable URL, and it all works with JavaScript disabled.
+ * Implemented as GET forms and links rather than client-side state, so
+ * the page remains a server component and each filter combination has a
+ * distinct, shareable URL.
  */
 
 export interface SearchQuery {
@@ -19,7 +19,7 @@ export interface SearchQuery {
     lang?: string;
 }
 
-/** Builds a `/search?…` URL, dropping empty values and resetting paging. */
+/** Builds a search URL from the current filters merged with `changes`. */
 export function searchHref(current: SearchQuery, changes: Partial<SearchQuery>): string {
     const merged: SearchQuery = { ...current, ...changes };
     const params = new URLSearchParams();
@@ -75,11 +75,8 @@ export function SearchControls({
 
     return (
         <>
-            {/*
-              One form holding every select. Submitting sends all of them
-              at once, and `q` rides along as a hidden field so changing
-              the category does not silently drop the search term.
-            */}
+            {/* A single form submits all filters together. The search term
+                is carried as a hidden field so it survives a filter change. */}
             <form action="/search" method="get" className="flex flex-wrap items-center gap-3">
                 {query.q && <input type="hidden" name="q" value={query.q} />}
                 {locale === "bn" && <input type="hidden" name="lang" value="bn" />}
@@ -149,12 +146,10 @@ export function SearchControls({
 }
 
 /**
- * A native <select> styled to match the design.
+ * Styled native select.
  *
- * Native rather than a custom dropdown: it needs no JavaScript, it is
- * keyboard and screen-reader correct for free, and on a phone it opens the
- * OS picker — which matters when the client says most visitors are on
- * mobile.
+ * A native control is used for keyboard and assistive technology support,
+ * and because mobile browsers present the platform picker.
  */
 function SelectField({
     name,

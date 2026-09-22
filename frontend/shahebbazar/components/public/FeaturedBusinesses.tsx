@@ -38,12 +38,8 @@ export function FeaturedBusinesses({
                 <ul className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     {businesses.map((business) => (
                         <li key={business.vendor_id} className="h-full">
-                            {/*
-                              These are paid placements, so every one is
-                              labelled. The client's model sells featured
-                              slots; presenting them as an editorial pick
-                              would be misleading.
-                            */}
+                            {/* Featured entries are paid placements and are
+                                always rendered with a label. */}
                             <BusinessCard locale={locale} business={business} showSponsoredBadge />
                         </li>
                     ))}

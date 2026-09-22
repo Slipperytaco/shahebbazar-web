@@ -4,14 +4,11 @@ import { SiteFooter } from "../shared/SiteFooter";
 import type { Locale } from "@/lib/i18n";
 
 /**
- * Page chrome: header, left rail, content column, footer.
+ * Page chrome: header, navigation rail, content column and footer.
  *
- * This lives in a component rather than in `app/layout.tsx` because the
- * language comes from `?lang=`, and a Next layout is not given
- * `searchParams`. Each page resolves the locale and passes it down.
- *
- * When the locale moves into the route (`/bn/...`), this collapses back
- * into the layout and the prop goes away.
+ * Implemented as a component rather than a layout because the locale is
+ * read from a search parameter, which Next.js does not pass to layouts.
+ * Each page resolves the locale and supplies it here.
  */
 export function AppShell({
     locale,
@@ -26,12 +23,8 @@ export function AppShell({
         <div className="flex min-h-screen flex-col">
             <SiteHeader locale={locale} />
 
-            {/*
-              `lang` is set here rather than on <html> because the layout
-              cannot see the query string. Assistive technology still gets
-              the correct language for the content, which is what matters;
-              locale-prefixed routes will move it up to <html>.
-            */}
+            {/* Declared here rather than on <html>, which the layout
+                renders without access to the query string. */}
             <div
                 lang={locale}
                 className={`mx-auto flex w-full max-w-[1440px] flex-1 gap-5 px-4 py-5 sm:px-6 ${

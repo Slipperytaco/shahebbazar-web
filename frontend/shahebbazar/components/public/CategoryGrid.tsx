@@ -4,9 +4,10 @@ import { t, localeHref, pick, type Locale } from "@/lib/i18n";
 import type { CategoryTile } from "@/lib/types";
 
 /**
- * Tile tints. Written out in full rather than built by interpolation:
- * Tailwind scans source files for complete class names, so a string like
- * `bg-${colour}-50` is never generated and the tile renders untinted.
+ * Tile colour variants.
+ *
+ * Class names are written in full because Tailwind resolves them by
+ * scanning source text; interpolated names are not generated.
  */
 const TINTS = [
     "bg-emerald-50 text-emerald-600",
