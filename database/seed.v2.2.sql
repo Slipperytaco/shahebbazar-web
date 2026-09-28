@@ -1,13 +1,4 @@
--- =====================================================================
--- Shahebbazar -- seed v2.2: profile detail for the business profile page
--- =====================================================================
---
--- Website addresses and profile attributes for the featured businesses.
---
--- All values are fictional sample data.
---
--- Run after schema.v2.2.sql and seed.v2.1.sql.
--- =====================================================================
+-- Seed v2.2: website addresses and profile details for the featured businesses.
 
 BEGIN;
 
@@ -22,9 +13,7 @@ FROM (VALUES
 ) AS w(slug, url)
 WHERE v.vendor_slug = w.slug;
 
--- ---------------------------------------------------------------------
 -- Attributes rendered beside the business description
--- ---------------------------------------------------------------------
 INSERT INTO vendor_facts (vendor_id, fact_group, fact_label, fact_value, fact_icon, fact_sort_order)
 SELECT v.vendor_id, 'about', f.label, f.value, f.icon, f.sort
 FROM (VALUES
@@ -55,9 +44,7 @@ FROM (VALUES
 JOIN vendors v ON v.vendor_slug = f.slug
 ON CONFLICT (vendor_id, fact_group, fact_label) DO NOTHING;
 
--- ---------------------------------------------------------------------
 -- Attributes rendered in the sidebar summary grid
--- ---------------------------------------------------------------------
 INSERT INTO vendor_facts (vendor_id, fact_group, fact_label, fact_value, fact_icon, fact_sort_order)
 SELECT v.vendor_id, 'quick', f.label, f.value, f.icon, f.sort
 FROM (VALUES
@@ -80,13 +67,7 @@ FROM (VALUES
 JOIN vendors v ON v.vendor_slug = f.slug
 ON CONFLICT (vendor_id, fact_group, fact_label) DO NOTHING;
 
--- ---------------------------------------------------------------------
--- Listings for the consumer businesses, populating the services section
--- of the profile page.
---
--- Services without a fixed price leave listing_price NULL, which the
--- column permits.
--- ---------------------------------------------------------------------
+-- Listings for the consumer businesses, populating the services section of the profile page.
 INSERT INTO vendor_listings (
     vendor_id, category_id, listing_title, listing_title_bn, listing_slug,
     listing_description, listing_price, listing_price_unit, listing_status
@@ -126,8 +107,7 @@ JOIN vendors    v ON v.vendor_slug   = x.vendor_slug
 JOIN categories c ON c.category_slug = x.category_slug
 ON CONFLICT (vendor_id, listing_slug) DO NOTHING;
 
--- Associates sample photographs with the new listings so the profile
--- gallery is populated.
+-- Associates sample photographs with the new listings so the profile gallery is populated.
 INSERT INTO listing_photos (listing_id, photo_url, photo_alt_text, photo_sort_order, photo_is_primary)
 SELECT l.listing_id, p.url, p.alt, 0, TRUE
 FROM (VALUES
@@ -140,13 +120,7 @@ FROM (VALUES
 JOIN vendor_listings l ON l.listing_slug = p.listing_slug
 ON CONFLICT DO NOTHING;
 
--- ---------------------------------------------------------------------
--- Written review bodies.
---
--- seed.v2.1 generates ratings without text so the averages are derived
--- from real rows. This adds review text to the most recent review of each
--- featured business for display on the profile page.
--- ---------------------------------------------------------------------
+-- Written review bodies. seed.v2.1 generates ratings without text so the averages are derived from real rows.
 UPDATE reviews r SET review_body = t.body
 FROM (VALUES
     ('rajshahi-medical-centre',
