@@ -9,12 +9,7 @@ import {
 } from "lucide-react";
 import { t, localeHref, type Locale } from "@/lib/i18n";
 
-/**
- * Primary navigation rail with the location promotion card.
- *
- * Hidden below the `lg` breakpoint, where the layout collapses to a
- * single column for mobile viewports.
- */
+// Primary navigation rail with the location promotion card.
 
 interface NavLink {
     key: keyof ReturnType<typeof t>;
@@ -22,8 +17,7 @@ interface NavLink {
     Icon: LucideIcon;
 }
 
-// Deals and Blog are missing on purpose — neither route exists yet, and
-// listing them put two guaranteed 404s in the main navigation.
+// Deals and Blog are left out on purpose: neither route exists.
 const LINKS: NavLink[] = [
     { key: "navHome", href: "/", Icon: Home },
     { key: "navBusinesses", href: "/search", Icon: Store },
@@ -81,12 +75,7 @@ export function SideNav({ locale, current = "/" }: { locale: Locale; current?: s
     );
 }
 
-/**
- * Decorative skyline illustration.
- *
- * Inline SVG avoids an additional request and a dependency on an external
- * asset. Not an icon, so it is not sourced from the icon library.
- */
+// Decorative skyline illustration.
 function CityIllustration() {
     return (
         <svg
