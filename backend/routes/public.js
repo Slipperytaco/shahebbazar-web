@@ -2,13 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
-/**
- * Public read endpoints.
- *
- * Consumed by the Next.js frontend during server-side rendering. All
- * responses are restricted to approved records, either by an explicit
- * status filter or by reading v_business_cards, which applies the filter.
- */
+// Public read endpoints.
 
 // Home page result limits.
 const HOME_FEATURED_LIMIT = 5;
@@ -16,12 +10,7 @@ const HOME_CATEGORY_LIMIT = 6;
 const HOME_EVENT_LIMIT = 3;
 const HOME_SEARCH_CHIP_LIMIT = 8;
 
-/**
- * Top-level categories with a derived subtitle.
- *
- * The subtitle is composed from the first three child categories rather
- * than stored, so taxonomy changes cannot leave a stale caption.
- */
+// Top-level categories with a derived subtitle.
 const CATEGORY_TILE_SQL = `
     SELECT p.category_id,
            p.category_name,
@@ -65,10 +54,7 @@ const CATEGORY_TILE_SQL = `
     LIMIT $1
 `;
 
-/**
- * Business card projection. v_business_cards restricts to approved vendors
- * and derives rating, review count and today's open state.
- */
+// Business card projection; v_business_cards keeps approved vendors and derives rating and open state.
 const BUSINESS_CARD_SQL = `
     SELECT vendor_id, vendor_slug, vendor_name, vendor_name_bn,
            vendor_description, vendor_address, vendor_cover_url, vendor_logo_url,
@@ -82,8 +68,7 @@ const BUSINESS_CARD_SQL = `
 
 router.get("/home", async (req, res) => {
     try {
-        // Issued concurrently. Any failure fails the whole response: a
-        // home page missing a section should not be served as valid.
+        // Issued concurrently.
         const [categories, featured, events, searches] = await Promise.all([
             pool.query(CATEGORY_TILE_SQL, [HOME_CATEGORY_LIMIT]),
 
@@ -106,8 +91,6 @@ router.get("/home", async (req, res) => {
             ),
 
             // Reads the aggregated view rather than search_logs directly.
-            // The view suppresses low-frequency terms, preventing a single
-            // user's query from surfacing as a popular search.
             pool.query(
                 `SELECT search_query_normalised AS term, SUM(trend_count) AS hits
                  FROM v_search_trends_daily
@@ -130,16 +113,7 @@ router.get("/home", async (req, res) => {
     }
 });
 
-/**
- * Builds an error response body.
- *
- * Outside production the underlying database message is included to aid
- * diagnosis. It is withheld in production because database errors expose
- * table and column names.
- *
- * @param {string} message  Client-facing summary.
- * @param {Error} err       Originating error.
- */
+// Builds an error response body.
 function errorBody(message, err) {
     if (process.env.NODE_ENV === "production") return { error: message };
 
@@ -170,7 +144,8 @@ router.get("/categories", async (req, res) => {
                            OR c2.category_parent_id = c.category_id
                     ) AS business_count
              FROM categories c
-             WHERE c.category_is_active
+             LEFT JOIN categories parent ON parent.category_id = c.category_parent_id
+             WHERE c.category_is_active AND (parent.category_id IS NULL OR parent.category_is_active)
              ORDER BY c.category_sort_order, c.category_name`
         );
         res.json(result.rows);
@@ -180,15 +155,7 @@ router.get("/categories", async (req, res) => {
     }
 });
 
-/**
- * Business search and listing.
- *
- * Promoted records are returned in a separate `sponsored` array rather
- * than merged into `results`, so the client cannot render paid placement
- * as an organic result. Paid placement must be displayed with a label.
- *
- * Query parameters: q, category, area, sort, limit, offset.
- */
+// Business search and listing.
 router.get("/businesses", async (req, res) => {
     const { q, category, area } = req.query;
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
@@ -199,12 +166,7 @@ router.get("/businesses", async (req, res) => {
 
     if (q) {
         params.push(`%${q}%`);
-        // Matches business name and the titles of its approved listings,
-        // supporting search by product or service as well as by name.
-        //
-        // Columns are table-qualified because the facet queries reuse this
-        // clause with `vendors` joined, where an unqualified column name
-        // would be ambiguous. The qualifier is rewritten to the alias.
+        // Matches business names and approved listing titles, so products and services are searchable too.
         where.push(`(
             v_business_cards.vendor_name ILIKE $${params.length}
             OR v_business_cards.vendor_name_bn ILIKE $${params.length}
@@ -242,8 +204,7 @@ router.get("/businesses", async (req, res) => {
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const andSql = where.length ? `AND ${where.join(" AND ")}` : "";
 
-    // ORDER BY cannot be parameterised, so the sort key is resolved
-    // against a fixed whitelist rather than interpolated from input.
+    // ORDER BY cannot be parameterised, so the sort key comes from a fixed whitelist.
     const SORTS = {
         relevance: "vendor_is_featured DESC, rating DESC, review_count DESC, vendor_name",
         rating: "rating DESC, review_count DESC, vendor_name",
@@ -254,8 +215,7 @@ router.get("/businesses", async (req, res) => {
 
     try {
         const [organic, sponsored, total, areas, categories] = await Promise.all([
-            // Promoted records are excluded here and returned separately,
-            // preventing a vendor appearing twice on the same page.
+            // Promoted records are excluded here and returned separately, so no vendor appears twice.
             pool.query(
                 `${BUSINESS_CARD_SQL}
                  WHERE NOT vendor_is_featured ${andSql}
@@ -275,15 +235,13 @@ router.get("/businesses", async (req, res) => {
                   )
                 : Promise.resolve({ rows: [] }),
 
-            // Counts all matches including promoted records, since both
-            // are displayed and both count towards the reported total.
+            // Counts all matches including promoted records, since both are shown.
             pool.query(
                 `SELECT COUNT(*)::int AS n FROM v_business_cards ${whereSql}`,
                 params
             ),
 
-            // Facet counts for the sidebar, evaluated against the active
-            // filter so the counts narrow as filters are applied.
+            // Facet counts for the sidebar, evaluated against the active filter so the counts narrow as filters are applied.
             pool.query(
                 `SELECT l.location_name AS name, l.location_name_bn AS name_bn,
                         l.location_slug AS slug, COUNT(*)::int AS count
@@ -326,21 +284,12 @@ router.get("/businesses", async (req, res) => {
     }
 });
 
-/**
- * Full business profile, addressed by slug.
- *
- * Returns the record together with its categories, opening hours, photos,
- * listings, facts, reviews, rating distribution and nearby businesses in
- * the same category.
- *
- * Addressed by slug rather than id to produce descriptive, indexable URLs.
- */
+// Full business profile, addressed by slug.
 router.get("/businesses/:slug", async (req, res) => {
     const { slug } = req.params;
 
     try {
-        // Joins `vendors` for coordinates, which the card view omits and
-        // the distance calculation requires.
+        // Joins `vendors` for coordinates, which the card view omits and the distance calculation requires.
         const businessResult = await pool.query(
             `SELECT b.*, v.vendor_lat, v.vendor_lng
              FROM v_business_cards b
@@ -349,8 +298,7 @@ router.get("/businesses/:slug", async (req, res) => {
             [slug]
         );
 
-        // v_business_cards contains approved vendors only, so unapproved
-        // records return 404 rather than being disclosed.
+        // v_business_cards contains approved vendors only, so unapproved records return 404 rather than being disclosed.
         if (businessResult.rowCount === 0) {
             return res.status(404).json({ error: "Business not found" });
         }
@@ -358,7 +306,7 @@ router.get("/businesses/:slug", async (req, res) => {
         const business = businessResult.rows[0];
         const id = business.vendor_id;
 
-        const [extra, categories, hours, photos, listings, facts, reviews, distribution, similar] =
+        const [extra, categories, hours, photos, listings, facts, reviews, distribution, similar, social] =
             await Promise.all([
                 pool.query(
                     `SELECT vendor_address, vendor_phone, vendor_whatsapp, vendor_email,
@@ -387,14 +335,26 @@ router.get("/businesses/:slug", async (req, res) => {
                     [id]
                 ),
 
-                // The gallery is composed of photographs attached to the
-                // business's approved listings.
+                // Gallery: the business's own photos first (the first is the cover), then its approved listings' photos.
                 pool.query(
-                    `SELECT p.photo_url AS url, p.photo_alt_text AS alt
-                     FROM listing_photos p
-                     JOIN vendor_listings l ON l.listing_id = p.listing_id
-                     WHERE l.vendor_id = $1 AND l.listing_status = 'approved'
-                     ORDER BY p.photo_is_primary DESC, p.photo_sort_order, p.photo_id`,
+                    `SELECT url, alt FROM (
+                         SELECT vp.vendor_photo_url AS url, vp.vendor_photo_alt AS alt,
+                                0 AS k1, vp.vendor_photo_sort AS k2, vp.vendor_photo_id AS k3
+                         FROM vendor_photos vp
+                         WHERE vp.vendor_id = $1
+                         UNION ALL
+                         SELECT p.photo_url, p.photo_alt_text,
+                                CASE WHEN p.photo_is_primary THEN 1 ELSE 2 END,
+                                p.photo_sort_order, p.photo_id
+                         FROM listing_photos p
+                         JOIN vendor_listings l ON l.listing_id = p.listing_id
+                         WHERE l.vendor_id = $1 AND l.listing_status = 'approved'
+                           AND NOT EXISTS (
+                               SELECT 1 FROM vendor_photos vp2
+                               WHERE vp2.vendor_id = $1 AND vp2.vendor_photo_url = p.photo_url
+                           )
+                     ) gallery
+                     ORDER BY k1, k2, k3`,
                     [id]
                 ),
 
@@ -418,12 +378,12 @@ router.get("/businesses/:slug", async (req, res) => {
                     [id]
                 ),
 
-                // Reviews with written content only; ratings without a body
-                // contribute to the average but have nothing to display.
+                // Reviews with written text only; ratings without a body still count towards the average.
                 pool.query(
                     `SELECT r.review_id, r.review_rating AS rating, r.review_body AS body,
                             r.review_created_at AS created_at, u.user_name AS author,
-                            u.user_phone_verified_at IS NOT NULL AS author_verified
+                            u.user_phone_verified_at IS NOT NULL AS author_verified,
+                            r.review_reply AS reply, r.review_replied_at AS replied_at
                      FROM reviews r
                      JOIN users u ON u.user_id = r.user_id
                      WHERE r.vendor_id = $1 AND r.review_status = 'published'
@@ -441,9 +401,7 @@ router.get("/businesses/:slug", async (req, res) => {
                     [id]
                 ),
 
-                // Nearby businesses sharing a category. Distance uses an
-                // equirectangular approximation, which is sufficient at
-                // city scale and avoids a PostGIS dependency.
+                // Nearby businesses sharing a category.
                 pool.query(
                     `SELECT b.*,
                             ROUND((111.045 * SQRT(
@@ -462,6 +420,15 @@ router.get("/businesses/:slug", async (req, res) => {
                      LIMIT 4`,
                     [id, business.vendor_lat ?? 0, business.vendor_lng ?? 0]
                 ),
+
+                pool.query(
+                    `SELECT social_platform AS platform, social_url AS url
+                     FROM vendor_social_links WHERE vendor_id = $1
+                     ORDER BY CASE social_platform
+                         WHEN 'facebook' THEN 0 WHEN 'instagram' THEN 1
+                         WHEN 'youtube' THEN 2 ELSE 3 END`,
+                    [id]
+                ),
             ]);
 
         const byRating = Object.fromEntries(distribution.rows.map((r) => [r.rating, r.count]));
@@ -479,6 +446,7 @@ router.get("/businesses/:slug", async (req, res) => {
                 count: byRating[rating] ?? 0,
             })),
             similar: similar.rows,
+            social: social.rows,
         });
     } catch (err) {
         console.error(`GET /api/businesses/${slug} failed:`, err);
