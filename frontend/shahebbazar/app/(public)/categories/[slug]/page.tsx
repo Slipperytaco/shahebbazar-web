@@ -53,7 +53,10 @@ export default async function CategoryPage({
 
     // A 404, not an empty listing — a stale link should not look like a real
     // category that happens to have nothing in it.
-    if (!category) notFound();
+    if (!category) {
+        notFound();
+        return null;
+    }
 
     const parent =
         category.category_parent_id === null

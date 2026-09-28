@@ -1,14 +1,4 @@
-/**
- * Interface copy in English and Bangla.
- *
- * The active locale is supplied by the `lang` query parameter.
- *
- * Known limitation: reading a search parameter excludes the page from
- * static generation. Server-rendered markup remains complete, so indexing
- * is unaffected, but the static cache is not used. Migrating to
- * locale-prefixed routes (`/en`, `/bn`) would restore it and give each
- * language a distinct indexable URL.
- */
+// Interface copy in English and Bangla.
 
 export const LOCALES = ["en", "bn"] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -21,13 +11,12 @@ export function resolveLocale(raw: string | string[] | undefined): Locale {
 /** Appends the locale parameter to a path, preserving existing query values. */
 export function localeHref(path: string, locale: Locale): string {
     if (locale === "en") return path;
-    return path.includes("?") ? `${path}&lang=bn` : `${path}?lang=bn`;
+    const [base, hash] = path.split("#");
+    const withLang = base.includes("?") ? `${base}&lang=bn` : `${base}?lang=bn`;
+    return hash === undefined ? withLang : `${withLang}#${hash}`;
 }
 
-/**
- * Selects the localised value, falling back to the other language when a
- * translation is absent, so a field is never rendered empty.
- */
+// Picks the localised value, falling back to the other language so a field is never empty.
 export function pick(
     locale: Locale,
     english: string | null | undefined,
@@ -178,6 +167,7 @@ const strings = {
         quickFacts: "Quick Facts",
         similarBusinesses: "Similar Businesses",
         website: "Website",
+        follow: "Follow",
         from: "From",
         priceOnRequest: "Price on request",
         minOrder: "Min order",
@@ -187,6 +177,24 @@ const strings = {
         subcategories: "Subcategories",
         noBusinessesInCategory: "No businesses in this category yet.",
         requestQuote: "Request a Quote",
+
+        // --- saving, reviews, messages, reports ---
+        saved: "Saved",
+        askAboutThis: "Ask about this",
+        reportBusiness: "Report this business",
+        report: "Report",
+        ownerReply: "Reply from the owner",
+        yourRating: "Your rating",
+        reviewPlaceholder: "Tell others about your experience (optional)",
+        submitReview: "Post review",
+        updateReview: "Update your review",
+        reviewSaved: "Thanks! Your review is posted.",
+        cancel: "Cancel",
+        myAccount: "My account",
+        eventsHeading: "Events in Rajshahi",
+        pastEvents: "Past events",
+        backToEvents: "All events",
+        organisedBy: "Organised by",
     },
 
     bn: {
@@ -328,6 +336,7 @@ const strings = {
         quickFacts: "সংক্ষিপ্ত তথ্য",
         similarBusinesses: "অনুরূপ ব্যবসা",
         website: "ওয়েবসাইট",
+        follow: "অনুসরণ করুন",
         from: "শুরু",
         priceOnRequest: "মূল্য জানতে যোগাযোগ করুন",
         minOrder: "সর্বনিম্ন অর্ডার",
@@ -337,6 +346,24 @@ const strings = {
         subcategories: "উপবিভাগ",
         noBusinessesInCategory: "এই বিভাগে এখনও কোনো ব্যবসা নেই।",
         requestQuote: "কোটেশন চান",
+
+        // --- saving, reviews, messages, reports ---
+        saved: "সংরক্ষিত",
+        askAboutThis: "এ বিষয়ে জানতে চান",
+        reportBusiness: "এই ব্যবসাটি রিপোর্ট করুন",
+        report: "রিপোর্ট",
+        ownerReply: "মালিকের উত্তর",
+        yourRating: "আপনার রেটিং",
+        reviewPlaceholder: "আপনার অভিজ্ঞতা লিখুন (ঐচ্ছিক)",
+        submitReview: "রিভিউ দিন",
+        updateReview: "রিভিউ হালনাগাদ করুন",
+        reviewSaved: "ধন্যবাদ! আপনার রিভিউ প্রকাশিত হয়েছে।",
+        cancel: "বাতিল",
+        myAccount: "আমার অ্যাকাউন্ট",
+        eventsHeading: "রাজশাহীর ইভেন্ট",
+        pastEvents: "বিগত ইভেন্ট",
+        backToEvents: "সব ইভেন্ট",
+        organisedBy: "আয়োজক",
     },
 } as const;
 

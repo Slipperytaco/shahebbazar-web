@@ -1,37 +1,12 @@
--- =====================================================================
--- Shahebbazar -- Phase 1 schema (v2)
--- COS40005 Group 23 - PostgreSQL 15+
--- =====================================================================
---
--- Supersedes schema.sql. Each table corresponds to a numbered client
--- requirement. See database/SCHEMA-NOTES.md for the requirement mapping
--- and the migration path from the previous schema.
---
--- Conventions (from README.md, unchanged):
---   tables       snake_case plural
---   columns      table-prefixed snake_case
---   foreign keys <table>_id
---
--- Status columns use CHECK constraints rather than ENUM types. Extending
--- an ENUM requires ALTER TYPE, which has transactional restrictions; a
--- CHECK constraint is amended in a single statement.
---
--- Run order:  schema.v2.sql  ->  seed.v2.sql
--- =====================================================================
+-- Shahebbazar Phase 1 schema (v2), COS40005 Group 23, PostgreSQL 15+. Supersedes schema.sql.
 
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- trigram indexes, section 4
 
--- =====================================================================
--- 1. IDENTITY AND ACCESS   (requirement 2A: role-based access control,
---                          phone as the primary identifier)
--- =====================================================================
+-- 1. IDENTITY AND ACCESS (requirement 2A: role-based access control, phone as the primary identifier)
 
--- Single identity table for all three roles, so verification, sessions
--- and rate limiting are implemented once. The previous schema stored
--- credentials on `vendors` in addition to a separate `users` table,
--- requiring two authentication paths.
+-- Single identity table for all three roles, so verification, sessions and rate limiting are implemented once.
 CREATE TABLE users (
     user_id             SERIAL PRIMARY KEY,
     -- Primary identifier, stored in E.164 format.
@@ -51,8 +26,7 @@ CREATE TABLE users (
 );
 CREATE INDEX idx_users_role ON users (user_role);
 
--- One-time codes for phone login and registration. Stored hashed so a
--- database disclosure does not expose usable codes.
+-- One-time codes for phone login and registration.
 CREATE TABLE otp_codes (
     otp_id          SERIAL PRIMARY KEY,
     otp_phone       VARCHAR(20)  NOT NULL,
@@ -68,8 +42,7 @@ CREATE TABLE otp_codes (
 -- Supports the rate-limit lookup of recent codes issued to a number.
 CREATE INDEX idx_otp_phone_created ON otp_codes (otp_phone, otp_created_at DESC);
 
--- Server-side sessions. The token is held only in an httpOnly cookie and
--- stored here as a hash, so database access alone cannot impersonate a user.
+-- Server-side sessions.
 CREATE TABLE sessions (
     session_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -81,13 +54,9 @@ CREATE TABLE sessions (
 );
 CREATE INDEX idx_sessions_user ON sessions (user_id);
 
--- =====================================================================
--- 2. GEOGRAPHY   (requirement: support expansion beyond the initial city)
--- =====================================================================
+-- 2. GEOGRAPHY (requirement: support expansion beyond the initial city)
 
 -- Self-referencing hierarchy: country > division > district > city > area.
--- Expanding to a new region is an INSERT rather than a schema change. A
--- plain city column on `vendors` would require a migration instead.
 CREATE TABLE locations (
     location_id         SERIAL PRIMARY KEY,
     location_parent_id  INT REFERENCES locations(location_id) ON DELETE RESTRICT,
@@ -96,17 +65,14 @@ CREATE TABLE locations (
     location_type       VARCHAR(20)  NOT NULL
         CHECK (location_type IN ('country', 'division', 'district', 'city', 'area')),
     location_slug       VARCHAR(255) NOT NULL UNIQUE,
-    -- Materialised ancestry path, allowing subtree queries by prefix match
-    -- rather than a recursive CTE.
+    -- Materialised ancestry path, allowing subtree queries by prefix match rather than a recursive CTE.
     location_path       TEXT NOT NULL,
     location_created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_locations_parent ON locations (location_parent_id);
 CREATE INDEX idx_locations_path   ON locations (location_path text_pattern_ops);
 
--- =====================================================================
 -- 3. TAXONOMY
--- =====================================================================
 
 -- Hierarchical, with a slug used as the public URL segment.
 CREATE TABLE categories (
@@ -122,14 +88,11 @@ CREATE TABLE categories (
 );
 CREATE INDEX idx_categories_parent ON categories (category_parent_id);
 
--- =====================================================================
--- 4. VENDORS   (business profiles)
--- =====================================================================
+-- 4. VENDORS (business profiles)
 
 CREATE TABLE vendors (
     vendor_id           SERIAL PRIMARY KEY,
-    -- Owning account. Separating identity from business profile allows one
-    -- account to hold several businesses.
+    -- Owning account.
     user_id             INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     vendor_name         VARCHAR(255) NOT NULL,
     vendor_name_bn      VARCHAR(255),
@@ -153,8 +116,7 @@ CREATE TABLE vendors (
     vendor_verified_at      TIMESTAMPTZ,
     vendor_verified_by      INT REFERENCES users(user_id) ON DELETE SET NULL,
     vendor_rejection_reason TEXT,
-    -- Paid placement. Must be rendered with a visible label and returned
-    -- separately from organic results.
+    -- Paid placement.
     vendor_is_featured    BOOLEAN NOT NULL DEFAULT FALSE,
     vendor_featured_until TIMESTAMPTZ,
     vendor_created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -172,15 +134,12 @@ CREATE TABLE vendor_categories (
 );
 CREATE INDEX idx_vendor_categories_category ON vendor_categories (category_id);
 
--- =====================================================================
--- 5. LISTINGS   (products and services)
--- =====================================================================
+-- 5. LISTINGS (products and services)
 
 CREATE TABLE vendor_listings (
     listing_id          SERIAL PRIMARY KEY,
     vendor_id           INT NOT NULL REFERENCES vendors(vendor_id) ON DELETE CASCADE,
-    -- Replaces a free-text category column, which permitted inconsistent
-    -- values and unreliable filtering.
+    -- Replaces a free-text category column, which permitted inconsistent values and unreliable filtering.
     category_id         INT REFERENCES categories(category_id) ON DELETE SET NULL,
     listing_title       VARCHAR(255) NOT NULL,
     listing_title_bn    VARCHAR(255),
@@ -222,13 +181,9 @@ CREATE INDEX idx_photos_listing ON listing_photos (listing_id);
 CREATE UNIQUE INDEX uq_photos_primary ON listing_photos (listing_id)
     WHERE photo_is_primary;
 
--- =====================================================================
--- 6. QUOTATIONS   (requirement 1: Phase 1 monetisation. Payment gateway
---                 integration is deferred to Phase 2)
--- =====================================================================
+-- 6. QUOTATIONS (requirement 1: Phase 1 monetisation through requests for quotes)
 
--- Buyer-initiated price request. The platform records the request and the
--- response; payment is settled outside the system.
+-- Buyer-initiated price request.
 CREATE TABLE quote_requests (
     rfq_id              SERIAL PRIMARY KEY,
     -- Short human-readable reference shown to both parties.
@@ -267,8 +222,7 @@ CREATE TABLE quote_responses (
     quote_price         NUMERIC(12,2) NOT NULL,
     quote_currency      CHAR(3) NOT NULL DEFAULT 'BDT',
     quote_lead_time_days INT,
-    -- Settlement terms agreed outside the platform. Gateway integration
-    -- is deferred to a later phase.
+    -- Settlement terms agreed outside the platform.
     quote_payment_terms VARCHAR(20) NOT NULL DEFAULT 'cash_on_delivery'
         CHECK (quote_payment_terms IN
                ('cash_on_delivery','advance','partial_advance','credit','negotiable')),
@@ -282,9 +236,7 @@ CREATE TABLE quote_responses (
 );
 CREATE INDEX idx_quotes_vendor ON quote_responses (vendor_id, quote_status);
 
--- =====================================================================
--- 7. MESSAGING AND NOTIFICATIONS   (requirement 2D)
--- =====================================================================
+-- 7. MESSAGING AND NOTIFICATIONS (requirement 2D)
 
 CREATE TABLE conversations (
     conversation_id     SERIAL PRIMARY KEY,
@@ -296,8 +248,7 @@ CREATE TABLE conversations (
         CHECK (conversation_status IN ('open','closed','blocked')),
     conversation_created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     conversation_last_message_at TIMESTAMPTZ,
-    -- One thread per buyer, business and listing combination, preventing
-    -- duplicate conversations.
+    -- One thread per buyer, business and listing combination, preventing duplicate conversations.
     UNIQUE (vendor_id, user_id, listing_id)
 );
 CREATE INDEX idx_conversations_vendor
@@ -315,8 +266,7 @@ CREATE TABLE messages (
 );
 CREATE INDEX idx_messages_conversation ON messages (conversation_id, message_created_at);
 
--- Outbound notification queue. Rows are written first and dispatched by a
--- worker, so a failed delivery is retryable rather than lost.
+-- Outbound notification queue.
 CREATE TABLE notifications (
     notification_id      SERIAL PRIMARY KEY,
     user_id              INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -337,9 +287,7 @@ CREATE INDEX idx_notifications_pending
 CREATE INDEX idx_notifications_user
     ON notifications (user_id, notification_created_at DESC);
 
--- =====================================================================
--- 8. REVIEWS AND MODERATION   (requirement 2E)
--- =====================================================================
+-- 8. REVIEWS AND MODERATION (requirement 2E)
 
 CREATE TABLE reviews (
     review_id       SERIAL PRIMARY KEY,
@@ -355,8 +303,7 @@ CREATE TABLE reviews (
 );
 CREATE INDEX idx_reviews_vendor ON reviews (vendor_id, review_status);
 
--- Polymorphic target, so the moderation queue remains a single list and
--- new reportable entities do not require additional tables.
+-- Polymorphic target, so one moderation queue covers every reportable type.
 CREATE TABLE reports (
     report_id          SERIAL PRIMARY KEY,
     report_target_type VARCHAR(20) NOT NULL
@@ -373,24 +320,17 @@ CREATE TABLE reports (
 );
 CREATE INDEX idx_reports_open ON reports (report_status, report_created_at DESC);
 
--- =====================================================================
--- 9. ANALYTICS   (requirement 2E: search trends and active user counts,
---                 reported in aggregate only)
--- =====================================================================
+-- 9. ANALYTICS (requirement 2E: search trends and active user counts, reported in aggregate only)
 
 CREATE TABLE search_logs (
     search_id             BIGSERIAL PRIMARY KEY,
     search_query_raw      TEXT NOT NULL,
     -- Case-folded, punctuation-stripped form used for trend grouping.
-    -- Normalisation must preserve combining marks: Bengali vowel signs and
-    -- the hasant are marks rather than letters, and stripping them
-    -- decomposes words into unmatchable characters.
     search_query_normalised TEXT NOT NULL,
     category_id           INT REFERENCES categories(category_id) ON DELETE SET NULL,
     location_id           INT REFERENCES locations(location_id)  ON DELETE SET NULL,
     search_result_count   INT NOT NULL DEFAULT 0,
-    -- Salted, rotating hash. No raw address or account identifier is
-    -- stored, so analytics remain aggregate.
+    -- Salted, rotating hash.
     search_session_hash   CHAR(64),
     search_created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -408,8 +348,7 @@ CREATE TABLE vendor_profile_views (
 );
 CREATE INDEX idx_views_vendor ON vendor_profile_views (vendor_id, view_created_at DESC);
 
--- Records administrative actions that modify other users' data, so the
--- acting account and prior state remain auditable.
+-- Records admin actions that change other users' data, with the actor and the state before and after.
 CREATE TABLE audit_logs (
     audit_id            BIGSERIAL PRIMARY KEY,
     audit_actor_user_id INT REFERENCES users(user_id) ON DELETE SET NULL,
@@ -422,13 +361,9 @@ CREATE TABLE audit_logs (
 );
 CREATE INDEX idx_audit_created ON audit_logs (audit_created_at DESC);
 
--- ---------------------------------------------------------------------
 -- Admin dashboard views
--- ---------------------------------------------------------------------
 
--- Daily search trends. Terms with fewer than five occurrences are
--- suppressed, as a low-frequency query combined with a narrow location can
--- identify an individual.
+-- Daily search trends.
 CREATE VIEW v_search_trends_daily AS
 SELECT date_trunc('day', search_created_at)::date AS trend_day,
        search_query_normalised,

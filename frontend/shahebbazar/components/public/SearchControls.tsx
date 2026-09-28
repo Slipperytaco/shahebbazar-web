@@ -3,13 +3,7 @@ import { ChevronDown, ListFilter, MapPin, X } from "lucide-react";
 import { t, type Locale } from "@/lib/i18n";
 import type { CategoryTile, Facet } from "@/lib/types";
 
-/**
- * Search filter controls and active filter indicators.
- *
- * Implemented as GET forms and links rather than client-side state, so
- * the page remains a server component and each filter combination has a
- * distinct, shareable URL.
- */
+// Search filter controls and active filter indicators.
 
 export interface SearchQuery {
     q?: string;
@@ -75,8 +69,7 @@ export function SearchControls({
 
     return (
         <>
-            {/* A single form submits all filters together. The search term
-                is carried as a hidden field so it survives a filter change. */}
+            {/* A single form submits all filters together. */}
             <form action="/search" method="get" className="flex flex-wrap items-center gap-3">
                 {query.q && <input type="hidden" name="q" value={query.q} />}
                 {locale === "bn" && <input type="hidden" name="lang" value="bn" />}
@@ -145,12 +138,7 @@ export function SearchControls({
     );
 }
 
-/**
- * Styled native select.
- *
- * A native control is used for keyboard and assistive technology support,
- * and because mobile browsers present the platform picker.
- */
+// Styled native select.
 function SelectField({
     name,
     label,

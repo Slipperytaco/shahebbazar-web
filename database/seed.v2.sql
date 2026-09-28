@@ -1,28 +1,8 @@
--- =====================================================================
--- Shahebbazar -- seed data (v2)
--- =====================================================================
---
--- Sample merchant data covering the sectors named in the client scope:
--- silk, handicrafts, agro-supplies and light manufacturing, together with
--- tourism and health.
---
--- All businesses, individuals and telephone numbers are fictional and are
--- provided for development and demonstration only.
---
--- Run after schema.v2.sql. Rows are inserted by slug lookup rather than
--- hard-coded identifiers, so the file remains correct if partially re-run.
---
--- Bangla values are included so the search normaliser and the bilingual
--- interface can be exercised against non-Latin data.
--- =====================================================================
+-- Seed data (v2): sample merchants for silk, handicrafts, agro-supplies and light manufacturing.
 
 BEGIN;
 
--- ---------------------------------------------------------------------
 -- Locations: country > division > district > city > area.
--- A second division is seeded without merchants to demonstrate that the
--- hierarchy supports expansion without a schema change.
--- ---------------------------------------------------------------------
 INSERT INTO locations (location_parent_id, location_name, location_name_bn, location_type, location_slug, location_path) VALUES
     (NULL, 'Bangladesh', 'বাংলাদেশ', 'country', 'bd', 'bd');
 
@@ -56,9 +36,7 @@ CROSS JOIN (VALUES
 ) AS a(name, name_bn, slug)
 WHERE l.location_slug = 'rajshahi-city';
 
--- ---------------------------------------------------------------------
 -- Categories -- top level then children
--- ---------------------------------------------------------------------
 INSERT INTO categories (category_parent_id, category_name, category_name_bn, category_slug, category_icon, category_sort_order) VALUES
     (NULL, 'Silk & Textiles',      'সিল্ক ও বস্ত্র',        'silk-textiles',      'shirt',    10),
     (NULL, 'Handicrafts',          'হস্তশিল্প',             'handicrafts',        'palette',  20),
@@ -90,14 +68,7 @@ JOIN (VALUES
 ) AS c(parent_slug, name, name_bn, slug, sort)
   ON p.category_slug = c.parent_slug;
 
--- ---------------------------------------------------------------------
--- Users
---
--- user_password_hash below is a DEV-ONLY bcrypt hash of the string
--- "Password123!". Never ship it. Real accounts sign in by phone OTP and
--- carry NULL here; the hash exists only so the seeded admin can log in
--- before the SMS driver is wired up.
--- ---------------------------------------------------------------------
+-- Users: user_password_hash below is a DEV-ONLY bcrypt hash of "Password123!".
 INSERT INTO users (user_phone, user_email, user_name, user_password_hash, user_role, user_phone_verified_at) VALUES
     ('+8801711000001', 'admin@shahebbazar.com', 'Platform Admin',
      '$2b$12$Xk9uJmQx0v0hFqUeR7bF9uYt3WcHfPjLmN2sQ8vZaD5eK1gT4rC6y', 'admin', NOW()),
@@ -112,10 +83,7 @@ INSERT INTO users (user_phone, user_email, user_name, user_password_hash, user_r
     ('+8801722000001', NULL, 'Imran Chowdhury', NULL, 'customer', NOW()),
     ('+8801722000002', NULL, 'Farhana Yasmin',  NULL, 'customer', NOW());
 
--- ---------------------------------------------------------------------
--- Vendors: eight approved, one pending and one rejected, so the
--- moderation queue is populated on first load.
--- ---------------------------------------------------------------------
+-- Vendors: eight approved, one pending and one rejected, so the moderation queue is populated on first load.
 INSERT INTO vendors (
     user_id, vendor_name, vendor_name_bn, vendor_slug, vendor_description,
     vendor_phone, vendor_whatsapp, vendor_address, location_id,
@@ -193,9 +161,7 @@ WHERE v.vendor_status = 'approved';
 UPDATE vendors SET vendor_featured_until = NOW() + INTERVAL '30 days'
 WHERE vendor_is_featured;
 
--- ---------------------------------------------------------------------
 -- Vendor <-> category
--- ---------------------------------------------------------------------
 INSERT INTO vendor_categories (vendor_id, category_id)
 SELECT v.vendor_id, c.category_id
 FROM (VALUES
@@ -216,9 +182,7 @@ FROM (VALUES
 JOIN vendors    v ON v.vendor_slug   = m.vendor_slug
 JOIN categories c ON c.category_slug = m.category_slug;
 
--- ---------------------------------------------------------------------
 -- Listings
--- ---------------------------------------------------------------------
 INSERT INTO vendor_listings (
     vendor_id, category_id, listing_title, listing_title_bn, listing_slug,
     listing_description, listing_price, listing_price_max, listing_price_unit,
@@ -295,12 +259,7 @@ FROM (VALUES
 JOIN vendors    v ON v.vendor_slug   = x.vendor_slug
 JOIN categories c ON c.category_slug = x.category_slug;
 
--- ---------------------------------------------------------------------
--- Photos
---
--- References the sample images in backend/uploads/, so seeded listings
--- resolve to real files.
--- ---------------------------------------------------------------------
+-- Photos: references the sample images in backend/uploads/, so seeded listings resolve to real files.
 INSERT INTO listing_photos (listing_id, photo_url, photo_alt_text, photo_sort_order, photo_is_primary)
 SELECT l.listing_id, p.url, p.alt, 0, TRUE
 FROM (VALUES
@@ -312,10 +271,7 @@ FROM (VALUES
 ) AS p(listing_slug, url, alt)
 JOIN vendor_listings l ON l.listing_slug = p.listing_slug;
 
--- ---------------------------------------------------------------------
--- Quote requests in three states (open, quoted, accepted) so every status
--- is represented.
--- ---------------------------------------------------------------------
+-- Quote requests in three states (open, quoted, accepted) so every status is represented.
 INSERT INTO quote_requests (
     rfq_public_ref, user_id, rfq_contact_name, rfq_contact_phone,
     vendor_id, listing_id, category_id, rfq_title, rfq_details,
@@ -358,9 +314,7 @@ FROM (VALUES
 ) AS x(ref, price, lead_days, terms, notes, status)
 JOIN quote_requests q ON q.rfq_public_ref = x.ref;
 
--- ---------------------------------------------------------------------
 -- Reviews covering the published, pending and reported states
--- ---------------------------------------------------------------------
 INSERT INTO reviews (vendor_id, user_id, review_rating, review_body, review_status)
 SELECT v.vendor_id, u.user_id, r.rating, r.body, r.status
 FROM (VALUES
@@ -384,10 +338,7 @@ FROM reviews rv
 JOIN vendors v ON v.vendor_id = rv.vendor_id
 WHERE v.vendor_slug = 'padma-diagnostic-centre' AND rv.review_rating = 1;
 
--- ---------------------------------------------------------------------
--- Search logs. Each term is seeded above the five-event suppression
--- threshold applied by v_search_trends_daily.
--- ---------------------------------------------------------------------
+-- Search logs.
 INSERT INTO search_logs (search_query_raw, search_query_normalised, category_id,
                          search_result_count, search_session_hash, search_created_at)
 SELECT q.raw, q.norm, c.category_id, q.results,
@@ -417,14 +368,4 @@ WHERE v.vendor_status = 'approved';
 
 COMMIT;
 
--- ---------------------------------------------------------------------
 -- Verification query; run after loading.
--- ---------------------------------------------------------------------
--- SELECT 'locations' t, COUNT(*) FROM locations
--- UNION ALL SELECT 'categories', COUNT(*) FROM categories
--- UNION ALL SELECT 'users', COUNT(*) FROM users
--- UNION ALL SELECT 'vendors', COUNT(*) FROM vendors
--- UNION ALL SELECT 'listings', COUNT(*) FROM vendor_listings
--- UNION ALL SELECT 'rfq', COUNT(*) FROM quote_requests
--- UNION ALL SELECT 'quotes', COUNT(*) FROM quote_responses
--- UNION ALL SELECT 'moderation queue', COUNT(*) FROM v_moderation_queue;

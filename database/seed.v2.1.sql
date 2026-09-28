@@ -1,28 +1,8 @@
--- =====================================================================
--- Shahebbazar -- seed v2.1: content for the finalized home page design
--- =====================================================================
---
--- seed.v2.sql provides the business-to-business sectors named in the
--- client scope. This file adds the consumer directory categories shown in
--- the approved designs: Medical, Tourism, Restaurants, Shopping,
--- Education and Services.
---
--- The platform serves both audiences, so this file extends rather than
--- replaces the earlier data.
---
--- All businesses and individuals are fictional sample data.
---
--- Run after schema.v2.sql, schema.v2.1.sql and seed.v2.sql.
--- =====================================================================
+-- Seed v2.1: consumer directory content for the finalised home page design.
 
 BEGIN;
 
--- ---------------------------------------------------------------------
 -- Top-level categories shown on the home page.
--- Tile subtitles are derived from the first three child categories at
--- query time rather than stored, so they remain correct after taxonomy
--- changes.
--- ---------------------------------------------------------------------
 UPDATE categories
 SET category_name = 'Medical', category_name_bn = 'চিকিৎসা',
     category_sort_order = 10, category_icon = 'medical'
@@ -33,9 +13,7 @@ SET category_name = 'Tourism', category_name_bn = 'পর্যটন',
     category_sort_order = 20, category_icon = 'palm'
 WHERE category_slug = 'tourism';
 
--- The home page renders the first six categories by sort order. Consumer
--- categories occupy 10-60; the business-to-business categories move to 70
--- and above and remain browsable through search.
+-- The home page renders the first six categories by sort order.
 UPDATE categories SET category_sort_order = 70  WHERE category_slug = 'silk-textiles';
 UPDATE categories SET category_sort_order = 80  WHERE category_slug = 'handicrafts';
 UPDATE categories SET category_sort_order = 90  WHERE category_slug = 'agro-supplies';
@@ -70,8 +48,7 @@ JOIN (VALUES
 ) AS c(parent_slug, name, name_bn, slug, sort)
   ON p.category_slug = c.parent_slug;
 
--- Existing medical subcategories are ordered after Hospitals and Clinics
--- so the derived tile subtitle matches the approved design.
+-- Existing medical subcategories are ordered after Hospitals and Clinics to match the approved design.
 UPDATE categories SET category_name = 'Pharmacies', category_sort_order = 2
 WHERE category_slug = 'pharmacy';
 UPDATE categories SET category_sort_order = 4 WHERE category_slug = 'diagnostic-centre';
@@ -82,9 +59,7 @@ UPDATE categories SET category_sort_order = 4 WHERE category_slug = 'tour-operat
 UPDATE categories SET category_name = 'Hotels', category_sort_order = 0
 WHERE category_slug = 'hotels';
 
--- ---------------------------------------------------------------------
 -- Owners for the consumer-side businesses
--- ---------------------------------------------------------------------
 INSERT INTO users (user_phone, user_email, user_name, user_role, user_phone_verified_at) VALUES
     ('+8801711000010', NULL, 'Arif Hossain',    'vendor', NOW()),
     ('+8801711000011', NULL, 'Sabina Yeasmin',  'vendor', NOW()),
@@ -92,9 +67,7 @@ INSERT INTO users (user_phone, user_email, user_name, user_role, user_phone_veri
     ('+8801711000013', NULL, 'Nusrat Jahan',    'vendor', NOW()),
     ('+8801711000014', NULL, 'Mahfuzur Rahman', 'vendor', NOW());
 
--- ---------------------------------------------------------------------
 -- Featured businesses shown on the home page
--- ---------------------------------------------------------------------
 INSERT INTO vendors (
     user_id, vendor_name, vendor_name_bn, vendor_slug, vendor_description,
     vendor_phone, vendor_whatsapp, vendor_address, location_id,
@@ -145,8 +118,7 @@ FROM (VALUES
 JOIN vendors    v ON v.vendor_slug   = m.vendor_slug
 JOIN categories c ON c.category_slug = m.category_slug;
 
--- Cover images, referencing the sample files in backend/uploads/ so the
--- featured cards render photographs rather than placeholders.
+-- Cover images from backend/uploads/, so the featured cards show photographs.
 UPDATE vendors v SET vendor_cover_url = c.url
 FROM (VALUES
     ('rajshahi-medical-centre', 'uploads/1788451854562-688168547.jpg'),
@@ -157,12 +129,7 @@ FROM (VALUES
 ) AS c(slug, url)
 WHERE v.vendor_slug = c.slug;
 
--- ---------------------------------------------------------------------
--- Opening hours
---
--- Default hours are applied to all approved vendors, then overridden for
--- businesses operating continuously or later.
--- ---------------------------------------------------------------------
+-- Opening hours: defaults for approved vendors, then overrides for 24-hour and late-closing businesses.
 INSERT INTO vendor_opening_hours (vendor_id, hours_day_of_week, hours_open_time, hours_close_time)
 SELECT v.vendor_id, d, TIME '09:00', TIME '22:00'
 FROM vendors v
@@ -178,14 +145,7 @@ UPDATE vendor_opening_hours SET hours_close_time = TIME '23:00'
 WHERE vendor_id IN (SELECT vendor_id FROM vendors
                     WHERE vendor_slug IN ('padma-view-restaurant','grand-river-view-hotel'));
 
--- ---------------------------------------------------------------------
--- Reviews
---
--- Ratings are derived by v_business_cards rather than stored, so review
--- rows are required to produce representative averages. Forty synthetic
--- reviewers are seeded with a distribution weighted towards higher
--- ratings.
--- ---------------------------------------------------------------------
+-- Reviews: rating rows that v_business_cards averages, since ratings are not stored.
 INSERT INTO users (user_phone, user_name, user_role, user_phone_verified_at)
 SELECT '+88019' || LPAD(g::text, 8, '0'), 'Sample Reviewer ' || g, 'customer', NOW()
 FROM generate_series(1, 40) AS g;
@@ -211,9 +171,7 @@ WHERE v.vendor_status = 'approved'
 ON CONFLICT (vendor_id, user_id) DO NOTHING;
 
 
--- ---------------------------------------------------------------------
 -- Events, dated relative to NOW() so the upcoming list is never empty.
--- ---------------------------------------------------------------------
 INSERT INTO events (event_title, event_title_bn, event_slug, event_description,
                     event_venue, location_id, event_starts_at, event_ends_at)
 SELECT e.title, e.title_bn, e.slug, e.descr, e.venue, l.location_id,
@@ -235,13 +193,7 @@ FROM (VALUES
 ) AS e(title, title_bn, slug, descr, venue, area_slug, starts_in, ends_in)
 JOIN locations l ON l.location_slug = e.area_slug;
 
--- ---------------------------------------------------------------------
--- Popular searches
---
--- Popular search terms are read from v_search_trends_daily, which
--- suppresses terms with fewer than five occurrences. Nine rows per term
--- place these above both the threshold and the earlier seeded terms.
--- ---------------------------------------------------------------------
+-- Popular searches: seeded often enough to pass the five-a-day threshold in v_search_trends_daily.
 INSERT INTO search_logs (search_query_raw, search_query_normalised, category_id,
                          search_result_count, search_session_hash, search_created_at)
 SELECT q.term, lower(q.term), c.category_id, q.results,
