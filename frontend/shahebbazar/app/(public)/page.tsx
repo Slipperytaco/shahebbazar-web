@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { AppShell } from "@/components/public/AppShell";
 import { Hero } from "@/components/public/Hero";
 import { CategoryGrid } from "@/components/public/CategoryGrid";
@@ -7,25 +8,17 @@ import { WhyShahebbazar, PopularSearches, UpcomingEvents } from "@/components/pu
 import { getHomeData } from "@/lib/api";
 import { resolveLocale } from "@/lib/i18n";
 
-/**
- * Home page.
- *
- * A server component: data is resolved before markup is returned, so the
- * rendered response contains every category, business and event without
- * requiring client-side execution.
- */
+// Home page.
 
 export const metadata: Metadata = {
-    title: "Shahebbazar — Find businesses and services in Rajshahi",
-    description:
-        "Your local directory to discover, connect and support businesses in Rajshahi. Browse medical, tourism, restaurants, shopping, education and services.",
-    alternates: { canonical: "/" },
-    openGraph: {
+    ...pageMetadata({
         title: "Shahebbazar — Find businesses and services in Rajshahi",
         description:
-            "Your local directory to discover, connect and support businesses in your community.",
-        url: "/",
-    },
+            "Your local directory to discover, connect and support businesses in Rajshahi. Browse medical, tourism, restaurants, shopping, education and services.",
+        path: "/",
+    }),
+    // The home page is the brand itself, so the layout's " | Shahebbazar" suffix is not added.
+    title: { absolute: "Shahebbazar — Find businesses and services in Rajshahi" },
 };
 
 export default async function HomePage({
@@ -58,12 +51,7 @@ export default async function HomePage({
     );
 }
 
-/**
- * Site-level structured data.
- *
- * Declares `WebSite` with a `SearchAction`, enabling a sitelinks search
- * box. Business-level `LocalBusiness` data is emitted by the profile page.
- */
+// Site-level structured data.
 function SiteJsonLd() {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 

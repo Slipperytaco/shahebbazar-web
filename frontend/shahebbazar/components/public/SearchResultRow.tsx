@@ -6,12 +6,7 @@ import { t, localeHref, pick, type Locale } from "@/lib/i18n";
 import { formatRating, localiseDigits, toNumber } from "@/lib/format";
 import type { BusinessCard } from "@/lib/types";
 
-/**
- * Search result row.
- *
- * A wider layout than the summary card, carrying the description and
- * address in addition to the rating and open state.
- */
+// Search result row.
 export function SearchResultRow({
     locale,
     business,

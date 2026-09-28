@@ -1,19 +1,6 @@
 @import "tailwindcss";
 
-/* =====================================================================
-   Shahebbazar theme
-   =====================================================================
-
-   Design tokens declared in Tailwind's @theme block. Each custom property
-   generates the corresponding utilities: --color-brand-600 provides
-   bg-brand-600, text-brand-600 and border-brand-600.
-
-   Components are styled with these utilities. Add tokens here rather than
-   writing new component classes.
-
-   Light theme only. No dark palette has been designed, and an untested
-   one would degrade contrast across the interface.
-   ===================================================================== */
+/* Shahebbazar theme: design tokens declared in Tailwind's @theme block. */
 
 @theme {
     /* Brand ---------------------------------------------------------- */
@@ -31,8 +18,7 @@
     --color-surface: #ffffff;
     --color-surface-2: #f8fafc;
 
-    /* Borders. Named `line` rather than `border` so the generated
-       utility reads `border-line` instead of `border-border`. */
+    /* Borders. */
     --color-line: #e6eaf2;
     --color-line-strong: #d8dfec;
 
@@ -77,15 +63,7 @@
     }
 }
 
-/* ---------------------------------------------------------------------
-   Legacy form classes.
-
-   Referenced by the vendor register and dashboard pages. Defined with
-   @apply so those pages continue to work unmodified while resolving to
-   the same tokens as the rest of the interface.
-
-   Remove once those pages are rebuilt against the current designs.
-   --------------------------------------------------------------------- */
+/* Legacy form classes. */
 @layer components {
     .form-card {
         @apply rounded-xl border border-line bg-surface p-8 shadow-raised;

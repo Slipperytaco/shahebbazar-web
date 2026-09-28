@@ -1,6 +1,4 @@
-// Loading placeholders. Shapes mirror the real content so the layout does not
-// jump, and they are hidden from screen readers — the status is announced once
-// by LoadingAnnouncement instead.
+// Loading placeholders.
 
 export function Skeleton({ className = "" }: { className?: string }) {
     return <span className={`block animate-pulse rounded bg-surface-2 ${className}`} />;

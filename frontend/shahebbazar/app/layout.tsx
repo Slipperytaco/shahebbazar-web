@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { NavigationTracker } from "@/components/analytics/NavigationTracker";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -8,15 +9,7 @@ const geistSans = Geist({
     display: "swap",
 });
 
-/**
- * Site-wide metadata.
- *
- * `metadataBase` resolves relative OpenGraph image paths to absolute URLs,
- * which link preview cards require.
- *
- * NEXT_PUBLIC_SITE_URL must be set per environment; the localhost fallback
- * is for development only.
- */
+// Site-wide metadata.
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export const metadata: Metadata = {
@@ -39,10 +32,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
-        // The document language is set per page in AppShell, as the locale
-        // is read from a search parameter unavailable to layouts.
+        // The document language is set per page in AppShell, since layouts cannot read the locale parameter.
         <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
-            <body className="min-h-full">{children}</body>
+            <body className="min-h-full">
+                <NavigationTracker />
+                {children}
+            </body>
         </html>
     );
 }

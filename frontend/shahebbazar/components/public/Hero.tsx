@@ -2,12 +2,7 @@ import { MapPin, Search } from "lucide-react";
 import { HeroBackdrop } from "./HeroBackdrop";
 import { t, type Locale } from "@/lib/i18n";
 
-/**
- * Hero panel with the primary two-field search.
- *
- * Submits as a GET form, producing a linkable and crawlable
- * `/search?q=&where=` URL.
- */
+// Hero panel with the primary two-field search.
 export function Hero({ locale }: { locale: Locale }) {
     const copy = t(locale);
 
@@ -15,8 +10,7 @@ export function Hero({ locale }: { locale: Locale }) {
         <section className="relative overflow-hidden rounded-xl border border-line bg-surface shadow-card">
             <HeroBackdrop />
 
-            {/* Keeps the text legible over a changing backdrop: heaviest on the
-                left where the heading sits, light on the right. */}
+            {/* Gradient that keeps the text legible over the changing backdrop. */}
             <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 bg-gradient-to-r from-surface via-surface/90 to-surface/45 md:to-surface/20"

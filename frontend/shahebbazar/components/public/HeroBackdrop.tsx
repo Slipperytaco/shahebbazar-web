@@ -1,10 +1,6 @@
-// Crossfading hero backdrop, in pure CSS — no client component and no
-// JavaScript, so the home page stays server rendered and crawlable. The
-// keyframes are generated below rather than kept in globals.css, so the timing
-// always matches however many slides there are.
+// Crossfading hero backdrop in pure CSS, so the home page stays server rendered.
 
-// No licensed photography of Rajshahi yet, so the drawn scenes are used
-// instead. To switch: drop files in public/hero/ and list them here.
+// No licensed photography of Rajshahi yet, so the drawn scenes are used instead.
 const PHOTOS: { src: string; alt: string }[] = [];
 
 const HOLD_SECONDS = 7;
@@ -18,8 +14,7 @@ export function HeroBackdrop() {
     const fadePct = (FADE_SECONDS / cycle) * 100;
     const holdPct = 100 / count;
 
-    // The incoming slide sits above the outgoing one, so fading it in is what
-    // produces the crossfade.
+    // The incoming slide sits above the outgoing one, so fading it in is what produces the crossfade.
     const keyframes = `
 @keyframes shbHeroSlide {
     0% { opacity: 0; }
@@ -45,10 +40,7 @@ export function HeroBackdrop() {
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
             <style dangerouslySetInnerHTML={{ __html: keyframes }} />
 
-            {/* The last slide also sits underneath as a still base layer, which
-                is what the first slide fades in over at the end of every cycle.
-                No seam, nothing blank on first paint, and it is what shows when
-                motion is turned down. */}
+            {/* The last slide is also a still base layer that the first slide fades in over at the end of each cycle. */}
             <div className="absolute inset-0">
                 {PHOTOS.length > 0 ? (
                     <HeroPhoto photo={PHOTOS[PHOTOS.length - 1]} eager />
@@ -74,8 +66,7 @@ export function HeroBackdrop() {
     );
 }
 
-// Only the base layer is on screen at first paint, so the rest are lazy —
-// four hero-sized images at once would delay the largest paint.
+// Only the base layer shows at first paint, so the other slides load lazily.
 function HeroPhoto({
     photo,
     eager = false,
@@ -99,8 +90,7 @@ function HeroPhoto({
 
 /* ------------------------------------------------------------------ scenes */
 
-// Each scene crops rather than distorts at any aspect ratio. The palettes are
-// deliberately far apart so the change reads as intentional.
+// Each scene crops rather than distorts at any aspect ratio.
 const SCENES: { key: string; Scene: () => React.ReactElement }[] = [
     { key: "bazar", Scene: BazarAtDawn },
     { key: "river", Scene: PadmaRiver },

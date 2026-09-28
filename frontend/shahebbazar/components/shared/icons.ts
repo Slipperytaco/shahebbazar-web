@@ -1,13 +1,4 @@
-/**
- * Runtime icon resolution.
- *
- * Components import icons directly from `lucide-react`. This module covers
- * the case where the icon is not known at compile time, because
- * `categories.category_icon` is stored as a string.
- *
- * Brand marks are provided by `@icons-pack/react-simple-icons`, as
- * `lucide-react` does not include trademarked logos.
- */
+// Runtime icon resolution.
 
 import {
     BriefcaseMedical,
@@ -40,6 +31,8 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
     sprout: Sprout,
     factory: Factory,
 };
+
+export const CATEGORY_ICON_NAMES = Object.keys(CATEGORY_ICONS);
 
 export function categoryIcon(stored: string | null): LucideIcon {
     return (stored && CATEGORY_ICONS[stored]) || LayoutGrid;
