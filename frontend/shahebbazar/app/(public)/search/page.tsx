@@ -1,20 +1,17 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { AppShell } from "@/components/public/AppShell";
 import { SearchControls, searchHref, type SearchQuery } from "@/components/public/SearchControls";
 import { SearchResultRow } from "@/components/public/SearchResultRow";
 import { SearchSidebar } from "@/components/public/SearchSidebar";
+import { SearchBeacon } from "@/components/analytics/SearchBeacon";
 import { getHomeData, searchBusinesses } from "@/lib/api";
 import { resolveLocale, t, localeHref } from "@/lib/i18n";
 import { localiseDigits } from "@/lib/format";
 
-/**
- * Search results page.
- *
- * A server component. Each filter combination resolves to a distinct URL,
- * so a filtered view can be linked, bookmarked and crawled.
- */
+// Search results page.
 
 const PAGE_SIZE = 20;
 
@@ -37,16 +34,15 @@ export async function generateMetadata({
         ? `${q} in Rajshahi — search results`
         : "Browse businesses in Rajshahi";
 
-    return {
+    // Result pages are excluded from the index because arbitrary queries produce unbounded near-duplicate pages.
+    return pageMetadata({
         title,
         description: q
             ? `Businesses and services matching "${q}" in Rajshahi. Compare ratings, opening hours and contact details on Shahebbazar.`
             : "Browse trusted businesses and services across Rajshahi by category and area.",
-        // Result pages are excluded from the index because arbitrary
-        // queries produce unbounded near-duplicate pages. Links are still
-        // followed so business profiles are discovered.
-        robots: { index: false, follow: true },
-    };
+        path: q ? `/search?q=${encodeURIComponent(q)}` : "/search",
+        noindex: true,
+    });
 }
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<Params> }) {
@@ -57,8 +53,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     const page = Math.max(parseInt(params.page ?? "1", 10) || 1, 1);
     const offset = (page - 1) * PAGE_SIZE;
 
-    // The category list is read from the cached home payload rather than
-    // requested separately.
+    // The category list is read from the cached home payload rather than requested separately.
     const [data, home] = await Promise.all([
         searchBusinesses({
             q: params.q,
@@ -83,14 +78,24 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     const shownOnPage = data.sponsored.length + data.results.length;
     const firstRow = shownOnPage === 0 ? 0 : offset + 1;
     const lastRow = offset + shownOnPage;
-    // Derived from the returned page size, as the total includes promoted
-    // records that are not part of the paginated set.
+    // Derived from the page size, as the total includes promoted records outside the paginated set.
     const hasMore = data.results.length === PAGE_SIZE;
     const nothingFound = shownOnPage === 0;
     const num = (n: number) => localiseDigits(String(n), locale);
+    const typedQuery = params.q?.trim();
 
     return (
         <AppShell locale={locale} current="/search">
+            {/* Logs typed searches and first-page appearances only, matching what the provider dashboard reports. */}
+            {typedQuery && page === 1 && (
+                <SearchBeacon
+                    q={typedQuery}
+                    category={params.category}
+                    area={params.area}
+                    resultCount={data.total}
+                    vendorIds={[...data.sponsored, ...data.results].map((b) => b.vendor_id)}
+                />
+            )}
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="min-w-0">
                     <nav
@@ -133,8 +138,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                         />
                     </div>
 
-                    {/* Promoted records are rendered in a separate labelled
-                        block above the organic results. */}
+                    {/* Promoted records are rendered in a separate labelled block above the organic results. */}
                     {data.sponsored.length > 0 && (
                         <ul className="mt-5 divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card">
                             {data.sponsored.map((business) => (
@@ -145,8 +149,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                         </ul>
                     )}
 
-                    {/* Shown only when neither organic nor promoted records
-                        are present. */}
+                    {/* Shown only when neither organic nor promoted records are present. */}
                     {nothingFound ? (
                         <div className="mt-5 rounded-xl border border-line bg-surface p-12 text-center shadow-card">
                             <p className="font-medium">{copy.noResults}</p>
