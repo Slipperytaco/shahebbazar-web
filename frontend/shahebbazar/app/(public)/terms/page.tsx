@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { PolicyPage, type PolicySection } from "@/components/public/PolicyPage";
 import { resolveLocale } from "@/lib/i18n";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: "Terms of Service",
     description:
         "The terms that apply to using Shahebbazar, the local business directory for Rajshahi.",
-};
+    path: "/terms",
+});
 
 const SECTIONS: PolicySection[] = [
     {

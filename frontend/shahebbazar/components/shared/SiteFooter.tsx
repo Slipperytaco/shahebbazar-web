@@ -12,9 +12,8 @@ export function SiteFooter({ locale }: { locale: Locale }) {
             title: copy.footerAbout,
             links: [
                 { label: copy.footerAboutUs, href: "/about" },
-                { label: copy.footerHowItWorks, href: "/how-it-works" },
-                { label: copy.navBlog, href: "/blog" },
-                { label: copy.footerContact, href: "/contact" },
+                { label: copy.footerHowItWorks, href: "/about#how-it-works" },
+                { label: copy.footerContact, href: "/about#contact" },
             ],
         },
         {
@@ -22,8 +21,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
             links: [
                 { label: copy.footerAddBusiness, href: "/vendors/register" },
                 { label: copy.footerDashboard, href: "/vendors/dashboard" },
-                { label: copy.footerPlans, href: "/pricing" },
-                { label: copy.footerSupport, href: "/support" },
+                { label: copy.footerSupport, href: "/about#contact" },
             ],
         },
         {
@@ -32,7 +30,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
                 { label: copy.footerTerms, href: "/terms" },
                 { label: copy.footerPrivacy, href: "/privacy" },
                 { label: copy.footerRefunds, href: "/refunds" },
-                { label: copy.footerCookies, href: "/cookies" },
+                { label: copy.footerCookies, href: "/privacy" },
                 { label: copy.footerFaq, href: "/faq" },
             ],
         },
@@ -99,8 +97,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
                         <p className="mt-3 text-[0.8125rem] leading-relaxed text-muted">
                             {copy.footerNewsletter}
                         </p>
-                        {/* Target route is not yet implemented; the form
-                            fails visibly rather than appearing to succeed. */}
+                        {/* Target route is not yet implemented; the form fails visibly rather than appearing to succeed. */}
                         <form action="/api/subscribe" method="post" className="mt-4 flex gap-2">
                             <label htmlFor="newsletter-email" className="sr-only">
                                 {copy.footerEmailPlaceholder}

@@ -1,81 +1,98 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Bell, Bookmark, MessagesSquare, Star } from "lucide-react";
+import { AccountShell } from "@/components/customer/AccountShell";
+import { apiGet } from "@/lib/api";
+import { formatDateTime } from "@/lib/format";
+import type { AlertList, Customer } from "@/lib/types";
+import { markMyAlertsRead } from "../actions";
 
 export const metadata: Metadata = {
     title: "My account",
 };
 
-/**
- * Placeholder route.
- *
- * No design has been approved for the customer account screens. This
- * documents the intended sections and the tables that support them.
- * Replace once designs are available.
- */
+export default async function AccountPage() {
+    const [me, alerts] = await Promise.all([
+        apiGet<Customer>("/me"),
+        apiGet<AlertList>("/me/alerts"),
+    ]);
 
-const SECTIONS = [
-    {
-        title: "Saved businesses",
-        route: "/account/saved",
-        table: "saved_businesses",
-        note: "The bookmark on every business card writes here.",
-    },
-    {
-        title: "My quote requests",
-        route: "/account/quotes",
-        table: "quote_requests, quote_responses",
-        note: "Buyer side of the quotation flow.",
-    },
-    {
-        title: "Messages",
-        route: "/account/messages",
-        table: "conversations, messages",
-        note: "Buyer side of the buyer-to-seller messaging system.",
-    },
-    {
-        title: "My reviews",
-        route: "/account/reviews",
-        table: "reviews",
-        note: "One review per person per shop, enforced by a unique constraint.",
-    },
-    {
-        title: "Settings",
-        route: "/account/settings",
-        table: "users",
-        note: "Phone is the identifier; email is optional.",
-    },
-];
+    if (!me) {
+        return (
+            <AccountShell current="overview" title="My account">
+                <p className="text-sm text-muted">No customer account exists yet.</p>
+            </AccountShell>
+        );
+    }
 
-export default function AccountPage() {
+    const cards = [
+        { href: "/account/saved", label: "Saved businesses", value: me.saved_count, Icon: Bookmark },
+        { href: "/account/messages", label: "Unread messages", value: me.unread_messages, Icon: MessagesSquare },
+        { href: "/account/reviews", label: "Reviews written", value: me.review_count, Icon: Star },
+    ];
+
     return (
-        <main className="mx-auto max-w-2xl px-6 py-16">
-            <h1 className="text-2xl font-semibold tracking-tight">My account</h1>
-            <p className="mt-3 text-sm leading-relaxed text-muted">
-                Not built yet — there is no approved design for these screens. The
-                sections below are what belongs here, and each already has its tables
-                in the database.
+        <AccountShell current="overview" title={`Hello, ${me.user_name}`}>
+            <p className="text-sm text-muted">
+                {me.user_phone}
+                {me.user_email ? ` · ${me.user_email}` : ""}
             </p>
 
-            <ul className="mt-8 space-y-3">
-                {SECTIONS.map((section) => (
-                    <li
-                        key={section.route}
-                        className="rounded-xl border border-line bg-surface p-4 shadow-card"
-                    >
-                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                            <h2 className="text-[0.9375rem] font-semibold">{section.title}</h2>
-                            <code className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted">
-                                {section.route}
-                            </code>
-                        </div>
-                        <p className="mt-1.5 text-[0.8125rem] leading-snug text-muted">
-                            {section.note}
-                        </p>
-                        <p className="mt-1.5 text-xs text-soft">
-                            Tables: <span className="font-mono">{section.table}</span>
-                        </p>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+                {cards.map(({ href, label, value, Icon }) => (
+                    <li key={href}>
+                        <Link
+                            href={href}
+                            className="flex items-center gap-3 rounded-xl border border-line bg-surface p-4 shadow-card hover:border-brand-200"
+                        >
+                            <span className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                                <Icon className="size-5" />
+                            </span>
+                            <span>
+                                <span className="block text-xl font-bold">{value}</span>
+                                <span className="block text-[0.8125rem] text-muted">{label}</span>
+                            </span>
+                        </Link>
                     </li>
                 ))}
             </ul>
-        </main>
+
+            <section className="mt-6 rounded-xl border border-line bg-surface p-5 shadow-card">
+                <div className="flex items-center justify-between gap-3">
+                    <h2 className="flex items-center gap-2 text-[1.0625rem] font-semibold">
+                        <Bell className="size-4" /> Alerts
+                        {alerts && alerts.unread > 0 && (
+                            <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[0.6875rem] text-white">
+                                {alerts.unread} new
+                            </span>
+                        )}
+                    </h2>
+                    {alerts && alerts.unread > 0 && (
+                        <form action={markMyAlertsRead}>
+                            <button type="submit" className="text-[0.8125rem] font-medium text-brand-600 hover:underline">
+                                Mark all as read
+                            </button>
+                        </form>
+                    )}
+                </div>
+                {!alerts || alerts.alerts.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted">No alerts yet.</p>
+                ) : (
+                    <ul className="mt-3 divide-y divide-line">
+                        {alerts.alerts.map((alert) => (
+                            <li key={alert.id} className="py-2.5">
+                                <Link
+                                    href={`/account/messages/${alert.payload.conversation_id}`}
+                                    className={`block text-sm hover:text-brand-600 ${alert.read_at ? "text-muted" : "font-semibold"}`}
+                                >
+                                    New message from {alert.payload.from}: “{alert.payload.preview}”
+                                </Link>
+                                <span className="text-xs text-soft">{formatDateTime(alert.created_at)}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </section>
+        </AccountShell>
     );
 }

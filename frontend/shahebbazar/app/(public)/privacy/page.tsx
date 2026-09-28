@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { PolicyPage, type PolicySection } from "@/components/public/PolicyPage";
 import { resolveLocale } from "@/lib/i18n";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: "Privacy Policy",
     description:
         "What Shahebbazar collects, why it is collected, and what is never shared.",
-};
+    path: "/privacy",
+});
 
 const SECTIONS: PolicySection[] = [
     {
