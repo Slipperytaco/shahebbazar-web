@@ -132,14 +132,7 @@ function FacetList({
     );
 }
 
-/**
- * Schematic area map.
- *
- * A placeholder illustration labelled with the areas returned by the
- * current search. Interactive mapping requires a tile provider, which is
- * not yet configured; Leaflet with OpenStreetMap tiles is the intended
- * replacement.
- */
+// Schematic area map.
 function AreaMap({ areas }: { areas: Facet[] }) {
     const labels = areas.slice(0, 5).map((a) => a.name);
 
