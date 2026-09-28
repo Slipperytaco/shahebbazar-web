@@ -1,13 +1,4 @@
-/**
- * API response contract.
- *
- * Shared definitions for every payload returned by the Express API. A
- * column rename that is not reflected here surfaces as a compile error
- * rather than as missing data at runtime.
- *
- * Field names match the database columns so a value can be traced from
- * the interface to its source without an intermediate mapping.
- */
+// API response contract.
 
 export type OpenState = "open" | "closed" | null;
 
@@ -135,6 +126,8 @@ export interface Review {
     created_at: string;
     author: string;
     author_verified: boolean;
+    reply?: string | null;
+    replied_at?: string | null;
 }
 
 /** Business card with the distance from the business being viewed. */
@@ -185,4 +178,413 @@ export interface BusinessDetail {
     reviews: Review[];
     ratingDistribution: { rating: number; count: number }[];
     similar: SimilarBusiness[];
+    /** Owner's social pages, full https URLs. */
+    social: SocialLink[];
+}
+
+export type SocialPlatform = "facebook" | "instagram" | "youtube" | "tiktok";
+
+export interface SocialLink {
+    platform: SocialPlatform;
+    url: string;
+}
+
+// Provider dashboard (GET /api/vendors/:id/dashboard)
+
+export type DashboardPeriod = 7 | 30 | 90;
+
+export type VendorStatus = "draft" | "pending" | "approved" | "rejected" | "suspended";
+
+export type ListingStatus = "draft" | "pending" | "approved" | "rejected" | "archived";
+
+/** A count for the current period and the one before it. */
+export interface PeriodCount {
+    current: number;
+    previous: number;
+}
+
+export interface VendorDashboard {
+    vendor: {
+        vendor_id: number;
+        vendor_slug: string;
+        vendor_name: string;
+        vendor_description: string | null;
+        vendor_phone: string;
+        vendor_email: string | null;
+        vendor_address: string | null;
+        vendor_logo_url: string | null;
+        vendor_cover_url: string | null;
+        vendor_status: VendorStatus;
+        vendor_rejection_reason: string | null;
+        is_verified: boolean;
+        vendor_created_at: string;
+        area_name: string | null;
+        primary_category: string | null;
+        /** Null until the business is approved, or when hours are unknown. */
+        open_state: OpenState;
+        close_time_today: string | null;
+    };
+    days: DashboardPeriod;
+    stats: {
+        profileViews: PeriodCount;
+        searchAppearances: PeriodCount;
+        listings: { active: number; addedInPeriod: number; pending: number; total: number };
+        rating: { average: number | null; count: number };
+    };
+    /** One row per day, oldest first, zero-filled. `day` is YYYY-MM-DD. */
+    series: { day: string; views: number; appearances: number }[];
+    listings: {
+        listing_id: number;
+        listing_title: string;
+        /** NUMERIC, so a string. */
+        listing_price: string | null;
+        listing_price_max: string | null;
+        listing_price_unit: string | null;
+        listing_status: ListingStatus;
+        category_name: string | null;
+        photo_url: string | null;
+    }[];
+}
+
+/** Row of the development business picker; see getVendorsForPicker. */
+export interface VendorPickerRow {
+    vendor_id: number;
+    vendor_name: string;
+    vendor_status: VendorStatus;
+}
+
+/** GET /api/vendors/:id/summary */
+export interface VendorSummary {
+    vendor_id: number;
+    vendor_name: string;
+    vendor_slug: string;
+    vendor_status: VendorStatus;
+}
+
+// Add / Edit Business (GET and PUT /api/vendors/:id/profile)
+
+export type HoursMode = "open" | "closed" | "24h";
+
+/** One day's hours. `day` is 0 = Sunday to 6 = Saturday; times are HH:MM. */
+export interface HoursEntry {
+    day: number;
+    mode: HoursMode;
+    open: string | null;
+    close: string | null;
+}
+
+export interface FactEntry {
+    label: string;
+    value: string;
+    /** "about" beside the description, "quick" in the sidebar summary. */
+    group: "about" | "quick";
+}
+
+export interface VendorProfile {
+    vendor: {
+        vendor_id: number;
+        vendor_slug: string;
+        vendor_name: string;
+        vendor_name_bn: string | null;
+        vendor_description: string | null;
+        vendor_phone: string;
+        vendor_whatsapp: string | null;
+        vendor_email: string | null;
+        vendor_website: string | null;
+        vendor_address: string | null;
+        location_id: number | null;
+        vendor_logo_url: string | null;
+        vendor_cover_url: string | null;
+        vendor_status: VendorStatus;
+        vendor_rejection_reason: string | null;
+    };
+    category_ids: number[];
+    /** Days without an entry have no hours recorded. */
+    hours: HoursEntry[];
+    /** In display order; the first is the cover. */
+    photos: { id: number; url: string }[];
+    facts: FactEntry[];
+    social: Partial<Record<SocialPlatform, string>>;
+    listings: { total: number; live: number };
+}
+
+export interface ProfileLimits {
+    nameMin: number;
+    nameMax: number;
+    addressMax: number;
+    descriptionMin: number;
+    descriptionMax: number;
+    categoriesMax: number;
+    factsMax: number;
+    factLabelMax: number;
+    factValueMax: number;
+    emailMax: number;
+    websiteMax: number;
+    photosMax: number;
+}
+
+export interface VendorProfileWithOptions extends VendorProfile {
+    options: {
+        categories: { id: number; name: string; parent: string }[];
+        areas: { id: number; name: string; city: string }[];
+    };
+    limits: ProfileLimits;
+}
+
+/** Body of PUT /api/vendors/:id/profile. */
+export interface VendorProfileInput {
+    name: string;
+    name_bn: string;
+    category_ids: number[];
+    location_id: number | null;
+    address: string;
+    phone: string;
+    whatsapp: string;
+    description: string;
+    email: string;
+    website: string;
+    facts: FactEntry[];
+    social: Partial<Record<SocialPlatform, string>>;
+    hours: HoursEntry[];
+    photo_order: number[];
+    /** Send a draft or rejected business for approval. */
+    submit: boolean;
+}
+
+export type SaveProfileResult =
+    | { ok: true; profile: VendorProfile }
+    | { ok: false; error: string; errors?: Record<string, string> };
+
+// Admin approvals (GET /api/admin/queue)
+
+export interface PendingBusiness {
+    vendor_id: number;
+    vendor_slug: string;
+    vendor_name: string;
+    vendor_name_bn: string | null;
+    vendor_description: string | null;
+    vendor_phone: string;
+    vendor_whatsapp: string | null;
+    vendor_email: string | null;
+    vendor_website: string | null;
+    vendor_address: string | null;
+    vendor_cover_url: string | null;
+    vendor_logo_url: string | null;
+    vendor_created_at: string;
+    vendor_updated_at: string;
+    area_name: string | null;
+    owner_name: string;
+    owner_phone: string;
+    owner_phone_verified: boolean;
+    categories: string | null;
+    listing_count: number;
+    photo_count: number;
+    hours_days: number;
+    owner_other_businesses: number;
+    /** Rejected before and sent back by the owner. */
+    resubmitted: boolean;
+}
+
+export interface PendingListing {
+    listing_id: number;
+    listing_title: string;
+    listing_title_bn: string | null;
+    listing_description: string | null;
+    listing_price: string | null;
+    listing_price_max: string | null;
+    listing_price_unit: string | null;
+    listing_min_order_qty: number | null;
+    listing_created_at: string;
+    category_name: string | null;
+    vendor_id: number;
+    vendor_name: string;
+    vendor_slug: string;
+    vendor_status: VendorStatus;
+    photo_url: string | null;
+}
+
+export interface AdminDecisionLog {
+    /** BIGSERIAL, which node-pg returns as a string. */
+    audit_id: string;
+    audit_action: "vendor.approve" | "vendor.reject" | "listing.approve" | "listing.reject";
+    audit_target_type: "vendor" | "listing";
+    audit_target_id: number;
+    reason: string | null;
+    audit_created_at: string;
+    actor_name: string | null;
+    target_label: string | null;
+}
+
+export interface AdminQueue {
+    vendors: PendingBusiness[];
+    listings: PendingListing[];
+    recent: AdminDecisionLog[];
+}
+
+export type AdminDecision = "approve" | "reject";
+
+export type AdminDecisionResult = { ok: true } | { ok: false; error: string };
+
+export interface Customer {
+    user_id: number;
+    user_name: string;
+    user_phone: string;
+    user_email: string | null;
+    saved_count: number;
+    review_count: number;
+    unread_messages: number;
+}
+
+export interface SavedBusiness extends BusinessCard {
+    saved_at: string;
+}
+
+export interface ViewerState {
+    vendor_id: number;
+    saved: boolean;
+    review: { rating: number; body: string | null; status: string } | null;
+}
+
+export interface MyReview {
+    review_id: number;
+    rating: number;
+    body: string | null;
+    status: string;
+    created_at: string;
+    reply: string | null;
+    replied_at: string | null;
+    vendor_id: number;
+    vendor_name: string;
+    vendor_slug: string;
+}
+
+export interface OwnerReview {
+    review_id: number;
+    rating: number;
+    body: string | null;
+    status: string;
+    created_at: string;
+    reply: string | null;
+    replied_at: string | null;
+    author: string;
+}
+
+export interface ConversationSummary {
+    conversation_id: number;
+    status: string;
+    last_message_at: string | null;
+    vendor_id: number;
+    vendor_name: string;
+    vendor_slug: string;
+    customer_name: string;
+    listing_id: number | null;
+    listing_title: string | null;
+    last_message: string | null;
+    unread: number;
+}
+
+export interface Message {
+    message_id: number;
+    body: string;
+    created_at: string;
+    read_at: string | null;
+    mine: boolean;
+}
+
+export interface ConversationThread {
+    conversation: {
+        conversation_id: number;
+        status: string;
+        vendor_id: number;
+        vendor_name: string;
+        vendor_slug: string;
+        customer_name: string;
+        listing_id: number | null;
+        listing_title: string | null;
+    };
+    messages: Message[];
+}
+
+export interface Alert {
+    id: number;
+    type: string;
+    payload: { conversation_id?: number; from?: string; preview?: string };
+    read_at: string | null;
+    created_at: string;
+}
+
+export interface AlertList {
+    alerts: Alert[];
+    unread: number;
+}
+
+export interface OwnerDetails {
+    user_id: number;
+    user_name: string;
+    user_phone: string;
+    user_email: string | null;
+}
+
+export type ReportTargetType = "vendor" | "listing" | "review" | "message";
+
+export interface AdminReport {
+    report_id: number;
+    target_type: ReportTargetType;
+    target_id: number;
+    reason: string;
+    details: string | null;
+    status: "open" | "actioned" | "dismissed";
+    created_at: string;
+    resolved_at: string | null;
+    reporter_name: string | null;
+    resolver_name: string | null;
+    target_label: string | null;
+    business_slug: string | null;
+}
+
+export interface AdminReview {
+    review_id: number;
+    rating: number;
+    body: string | null;
+    status: string;
+    created_at: string;
+    author: string;
+    vendor_name: string;
+    vendor_slug: string;
+    open_reports: number;
+}
+
+export interface AdminTrends {
+    days: number;
+    totals: { searches: number; profile_views: number; new_businesses: number; new_reviews: number };
+    daily: { day: string; active_users: number; searches: number }[];
+    top: { query: string; searches: number; avg_results: string }[];
+    noResults: { query: string; searches: number }[];
+}
+
+export interface EventDetail extends EventItem {
+    event_description: string | null;
+    event_image_url: string | null;
+    area_name: string | null;
+    vendor_name: string | null;
+    vendor_slug: string | null;
+}
+
+export interface AdminCategory {
+    id: number;
+    parent_id: number | null;
+    name: string;
+    name_bn: string | null;
+    slug: string;
+    icon: string | null;
+    sort_order: number;
+    is_active: boolean;
+    business_count: number;
+}
+
+export interface CategoryInput {
+    name: string;
+    name_bn: string;
+    icon: string;
+    sort_order: number;
 }
