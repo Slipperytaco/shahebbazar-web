@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { PolicyPage, type PolicySection } from "@/components/public/PolicyPage";
 import { resolveLocale } from "@/lib/i18n";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: "Refund Policy",
     description:
         "How payments and refunds work on Shahebbazar, and who to approach when something goes wrong.",
-};
+    path: "/refunds",
+});
 
 const SECTIONS: PolicySection[] = [
     {
