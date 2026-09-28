@@ -3,12 +3,7 @@ import { categoryIcon } from "../shared/icons";
 import { t, localeHref, pick, type Locale } from "@/lib/i18n";
 import type { CategoryTile } from "@/lib/types";
 
-/**
- * Tile colour variants.
- *
- * Class names are written in full because Tailwind resolves them by
- * scanning source text; interpolated names are not generated.
- */
+// Tile colour variants.
 const TINTS = [
     "bg-emerald-50 text-emerald-600",
     "bg-sky-50 text-sky-600",
