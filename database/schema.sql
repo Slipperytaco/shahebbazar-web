@@ -1,6 +1,4 @@
--- Categories (MASTER)
--- - matches up other category tables - allows for vendors to have multiple 
--- and for categories to have multiple vendors many to many relationship
+-- Categories (master): many-to-many between vendors and categories. Superseded by schema.v2.sql.
 CREATE TABLE categories (
     category_id SERIAL PRIMARY KEY,
     category_name varchar(255) NOT NULL UNIQUE 
