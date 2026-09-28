@@ -3,9 +3,7 @@ import { Search } from "lucide-react";
 import { SiteHeader } from "@/components/shared/SiteHeader";
 import { SiteFooter } from "@/components/shared/SiteFooter";
 
-// Reached by notFound() and by any unrouted URL. It keeps the site chrome so
-// someone arriving from a search engine can still get into the directory.
-// The locale is not readable here, so the copy is given in both languages.
+// Reached by notFound() and by any unrouted URL.
 export default function NotFound() {
     return (
         <div className="flex min-h-screen flex-col">

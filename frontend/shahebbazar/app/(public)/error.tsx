@@ -3,10 +3,7 @@
 import { useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 
-// Error boundaries must be Client Components, so the locale helpers are not
-// available here and the copy is given in both languages instead.
-//
-// Note the recovery prop is `retry` in this version of Next.js, not `reset`.
+// Error boundaries are client components, so the copy is given in both languages here.
 export default function PublicError({
     error,
     retry,

@@ -1,9 +1,4 @@
-/**
- * Shahebbazar API server.
- *
- * Express application entry point: middleware, route mounting, health
- * check and startup diagnostics.
- */
+// Shahebbazar API server.
 
 const path = require('path');
 const express = require('express');
@@ -17,16 +12,31 @@ const vendorsRouter = require('./routes/vendors');
 const vendorListingsRouter = require('./routes/vendorListings');
 const publicRouter = require('./routes/public');
 const paymentMethodsRouter = require('./routes/paymentMethods');
+const analyticsRouter = require('./routes/analytics');
+const vendorDashboardRouter = require('./routes/vendorDashboard');
+const vendorProfileRouter = require('./routes/vendorProfile');
+const adminModerationRouter = require('./routes/adminModeration');
+const seoRouter = require('./routes/seo');
+const docsRouter = require('./routes/docs');
+const accountRouter = require('./routes/account');
+const reviewsRouter = require('./routes/reviews');
+const messagesRouter = require('./routes/messages');
+const reportsRouter = require('./routes/reports');
+const eventsRouter = require('./routes/events');
+const vendorSettingsRouter = require('./routes/vendorSettings');
+const adminCategoriesRouter = require('./routes/adminCategories');
+const { startNotificationWorker } = require('./lib/notify');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-/**
- * Allowed browser origins, comma-separated in CORS_ORIGIN.
- *
- * A wildcard origin is not valid for credentialed requests and would
- * expose the session cookie once authentication is added.
- */
+// Behind a proxy, trust it to report the visitor's real IP; the analytics visitor hash depends on it.
+if (process.env.TRUST_PROXY) {
+    const hops = process.env.TRUST_PROXY;
+    app.set('trust proxy', /^\d+$/.test(hops) ? Number(hops) : hops);
+}
+
+// Allowed browser origins, comma-separated in CORS_ORIGIN.
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
     .split(',')
     .map((origin) => origin.trim());
@@ -34,24 +44,28 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 
-// Serves the paths stored in listing_photos.photo_url and
-// vendors.vendor_cover_url.
+// Serves the paths stored in listing_photos.photo_url and vendors.vendor_cover_url.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/vendors', vendorsRouter);
 app.use('/api', vendorListingsRouter);
 app.use('/api', publicRouter);
 app.use('/api', paymentMethodsRouter);
+app.use('/api', analyticsRouter);
+app.use('/api', vendorDashboardRouter);
+app.use('/api', vendorProfileRouter);
+app.use('/api', adminModerationRouter);
+app.use('/api', seoRouter);
+app.use('/api', docsRouter);
+app.use('/api', accountRouter);
+app.use('/api', reviewsRouter);
+app.use('/api', messagesRouter);
+app.use('/api', reportsRouter);
+app.use('/api', eventsRouter);
+app.use('/api', vendorSettingsRouter);
+app.use('/api', adminCategoriesRouter);
 
-/**
- * GET /api/health
- *
- * Reports connectivity and schema completeness separately. A connectivity
- * check alone returns healthy against an empty database, while every data
- * endpoint fails.
- *
- * 200 when usable, 503 otherwise.
- */
+// GET /api/health: reports connectivity and schema completeness separately.
 app.get('/api/health', async (req, res) => {
     let time;
 
@@ -110,6 +124,7 @@ function connectionHint(code) {
 const server = app.listen(PORT, () => {
     console.log(`API running on http://localhost:${PORT}`);
     reportSchemaAtStartup();
+    startNotificationWorker();
 });
 
 server.on('error', (err) => {
