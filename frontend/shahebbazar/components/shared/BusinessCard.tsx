@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { Bookmark, MapPin, Star } from "lucide-react";
+import { MapPin, Star } from "lucide-react";
 import { assetUrl } from "@/lib/api";
 import { t, localeHref, pick, type Locale } from "@/lib/i18n";
 import { formatRating, localiseDigits, toNumber } from "@/lib/format";
 import type { BusinessCard as BusinessCardData } from "@/lib/types";
+import { SaveButton } from "@/components/customer/SaveButton";
 
-/**
- * Business summary card, shared by the home page, search results and the
- * related-businesses list.
- */
+// Business summary card, shared by the home page, search results and the related-businesses list.
 export function BusinessCard({
     locale,
     business,
@@ -16,10 +14,7 @@ export function BusinessCard({
 }: {
     locale: Locale;
     business: BusinessCardData;
-    /**
-     * Displays the paid-placement label. Set only for records returned in
-     * the API's `sponsored` array.
-     */
+    // Displays the paid-placement label.
     showSponsoredBadge?: boolean;
 }) {
     const copy = t(locale);
@@ -32,9 +27,7 @@ export function BusinessCard({
         <article className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-line bg-surface transition-shadow hover:shadow-float">
             <div className="relative aspect-4/3 overflow-hidden bg-brand-50">
                 {cover ? (
-                    // A plain <img> is used because the asset host is
-                    // environment-dependent; next/image would require it to
-                    // be declared in remotePatterns at build time.
+                    // A plain <img>, because next/image needs the environment-dependent asset host declared at build time.
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                         src={cover}
@@ -53,15 +46,12 @@ export function BusinessCard({
                     </span>
                 )}
 
-                {/* Saving requires an account. Links to sign-in until
-                    authentication is implemented. */}
-                <Link
-                    href={localeHref("/login", locale)}
-                    aria-label={`${copy.save}: ${name}`}
-                    className="absolute top-2 right-2 grid size-8 place-items-center rounded-lg bg-white/90 text-muted backdrop-blur transition-colors hover:text-brand-600"
-                >
-                    <Bookmark className="size-4" />
-                </Link>
+                <SaveButton
+                    vendorId={business.vendor_id}
+                    label={`${copy.save}: ${name}`}
+                    savedLabel={`${copy.saved}: ${name}`}
+                    variant="icon"
+                />
             </div>
 
             <div className="flex flex-1 flex-col p-3.5">
@@ -102,12 +92,7 @@ export function BusinessCard({
     );
 }
 
-/**
- * Open or closed indicator.
- *
- * Renders nothing when `state` is null, which indicates that no opening
- * hours are recorded rather than that the business is closed.
- */
+// Open or closed indicator.
 export function OpenBadge({
     locale,
     state,

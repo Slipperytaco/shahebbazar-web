@@ -2,12 +2,7 @@ import Link from "next/link";
 import { MapPin, Search } from "lucide-react";
 import { t, localeHref, type Locale } from "@/lib/i18n";
 
-/**
- * Site header: brand, global search, language toggle and account actions.
- *
- * Search submits as a standard GET form, producing a linkable and
- * crawlable `/search?q=` URL and functioning without JavaScript.
- */
+// Site header: brand, global search, language toggle and account actions.
 export function SiteHeader({ locale }: { locale: Locale }) {
     const copy = t(locale);
 
@@ -21,8 +16,7 @@ export function SiteHeader({ locale }: { locale: Locale }) {
                     </span>
                 </Link>
 
-                {/* Hidden on small viewports; the hero provides an
-                    equivalent search field. */}
+                {/* Hidden on small viewports; the hero provides an equivalent search field. */}
                 <form
                     action="/search"
                     method="get"
@@ -83,6 +77,12 @@ export function SiteHeader({ locale }: { locale: Locale }) {
                         </Link>
                     </nav>
 
+                    <Link
+                        href="/account"
+                        className="hidden text-sm font-medium text-muted hover:text-ink sm:block"
+                    >
+                        {copy.myAccount}
+                    </Link>
                     <Link
                         href={localeHref("/login", locale)}
                         className="hidden text-sm font-medium text-muted hover:text-ink sm:block"
