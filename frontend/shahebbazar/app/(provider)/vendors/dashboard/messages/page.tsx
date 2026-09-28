@@ -1,0 +1,33 @@
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import { apiGet, getVendorSummary } from "@/lib/api";
+import { ProviderShell, parseVendorParam, providerHref } from "@/components/provider/ProviderShell";
+import { ConversationList } from "@/components/messaging/ConversationList";
+import type { ConversationSummary } from "@/lib/types";
+
+export const metadata: Metadata = {
+    title: "Messages",
+};
+
+export default async function OwnerMessagesPage({ searchParams }: { searchParams: Promise<{ vendor?: string }> }) {
+    const vendorId = parseVendorParam((await searchParams).vendor);
+    if (vendorId === null) redirect("/vendors/dashboard");
+    const [vendor, conversations] = await Promise.all([
+        getVendorSummary(vendorId),
+        apiGet<ConversationSummary[]>(`/vendors/${vendorId}/conversations`),
+    ]);
+    if (!vendor) notFound();
+
+    return (
+        <ProviderShell vendor={vendor} current="messages">
+            <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">Messages</h1>
+            <p className="mt-1.5 mb-5 text-[0.9375rem] text-muted">Every conversation customers have started with your business.</p>
+            <ConversationList
+                conversations={conversations ?? []}
+                hrefFor={(id) => providerHref(`/vendors/dashboard/messages/${id}`, vendorId)}
+                show="customer"
+                empty="No messages yet. Customers can message you from your public page."
+            />
+        </ProviderShell>
+    );
+}

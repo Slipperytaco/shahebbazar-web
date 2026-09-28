@@ -5,18 +5,18 @@ import { ChevronLeft } from "lucide-react";
 import { AppShell } from "@/components/public/AppShell";
 import { BusinessProfile } from "@/components/public/BusinessProfile";
 import { BusinessSidebar } from "@/components/public/BusinessSidebar";
-import { assetUrl, getBusiness } from "@/lib/api";
+import { PaymentMethodsCard } from "@/components/payments/PaymentMethodsCard";
+import { assetUrl, getBusiness, getPaymentMethods } from "@/lib/api";
 import { resolveLocale, t, localeHref } from "@/lib/i18n";
 import { toNumber } from "@/lib/format";
-import type { BusinessDetail } from "@/lib/types";
+import { paymentMethodOption } from "@/lib/paymentMethods";
+import type { BusinessDetail, PaymentMethod } from "@/lib/types";
 
 /**
- * A shop profile.
+ * Business profile page.
  *
- * This is the page the client's SEO requirement is really about: it has a
- * stable slug URL, it is fully server-rendered, and it carries
- * `LocalBusiness` JSON-LD. Everything a crawler needs is in the HTML before
- * any JavaScript runs.
+ * Server-rendered at a stable slug URL and annotated with `LocalBusiness`
+ * structured data, so the complete record is available to crawlers.
  */
 
 type Params = { slug: string };
@@ -45,8 +45,7 @@ export async function generateMetadata({
         title,
         description,
         alternates: { canonical: `/business/${business.vendor_slug}` },
-        // Per-shop OpenGraph tags — the client's Phase 1 asked for dynamic
-        // OG tags and share preview cards, and this is where they matter.
+        // Per-business OpenGraph tags for link preview cards.
         openGraph: {
             type: "website",
             title,
@@ -68,15 +67,19 @@ export default async function BusinessPage({
     const locale = resolveLocale(lang);
     const copy = t(locale);
 
-    const detail = await getBusiness(slug);
+    const [detail, paymentMethods] = await Promise.all([
+        getBusiness(slug),
+        getPaymentMethods(slug),
+    ]);
 
-    // An unknown slug — or a shop that is pending, rejected or suspended,
-    // since the API only serves approved ones — is a 404, not an error.
+    // Unknown or unapproved records return 404. The API serves approved
+    // businesses only.
     if (!detail) notFound();
 
     return (
         <AppShell locale={locale} current="/search">
-            <LocalBusinessJsonLd detail={detail} />
+            <LocalBusinessJsonLd detail={detail} paymentMethods={paymentMethods} />
+            <ProductJsonLd detail={detail} />
 
             <Link
                 href={localeHref("/search", locale)}
@@ -88,7 +91,12 @@ export default async function BusinessPage({
 
             <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
                 <BusinessProfile locale={locale} detail={detail} />
-                <BusinessSidebar locale={locale} detail={detail} />
+                <div className="space-y-5">
+                    <BusinessSidebar locale={locale} detail={detail} />
+                    {paymentMethods && (
+                        <PaymentMethodsCard locale={locale} methods={paymentMethods} />
+                    )}
+                </div>
             </div>
         </AppShell>
     );
@@ -97,12 +105,17 @@ export default async function BusinessPage({
 /**
  * `LocalBusiness` structured data.
  *
- * The client asked for JSON-LD on merchant listings by name. Only fields
- * that are actually populated are emitted — an `aggregateRating` with zero
- * reviews, or an address with empty parts, is invalid structured data and
- * Google will flag it rather than ignore it.
+ * Only populated fields are emitted. Incomplete properties, such as an
+ * `aggregateRating` with no reviews, are invalid and are reported as
+ * errors by search engines rather than ignored.
  */
-function LocalBusinessJsonLd({ detail }: { detail: BusinessDetail }) {
+function LocalBusinessJsonLd({
+    detail,
+    paymentMethods,
+}: {
+    detail: BusinessDetail;
+    paymentMethods: PaymentMethod[] | null;
+}) {
     const { business, categories, hours, photos } = detail;
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
     const reviewCount = toNumber(business.review_count);
@@ -121,6 +134,7 @@ function LocalBusinessJsonLd({ detail }: { detail: BusinessDetail }) {
     const json: Record<string, unknown> = {
         "@context": "https://schema.org",
         "@type": "LocalBusiness",
+        "@id": `${siteUrl}/business/${business.vendor_slug}#business`,
         name: business.vendor_name,
         url: `${siteUrl}/business/${business.vendor_slug}`,
         telephone: business.vendor_phone,
@@ -157,8 +171,7 @@ function LocalBusinessJsonLd({ detail }: { detail: BusinessDetail }) {
         json.additionalType = categories.map((c) => c.name);
     }
 
-    // Omitted entirely when there are no reviews — a rating of 0 out of 0
-    // is invalid, not merely unhelpful.
+    // Omitted when no reviews exist; a zero-count rating is invalid.
     if (reviewCount > 0) {
         json.aggregateRating = {
             "@type": "AggregateRating",
@@ -180,12 +193,88 @@ function LocalBusinessJsonLd({ detail }: { detail: BusinessDetail }) {
 
     if (openingHours.length > 0) json.openingHoursSpecification = openingHours;
 
+    const accepted = (paymentMethods ?? [])
+        .map((m) => paymentMethodOption(m.payment_method)?.label)
+        .filter(Boolean);
+    if (accepted.length > 0) json.paymentAccepted = accepted.join(", ");
+
     return (
         <script
             type="application/ld+json"
-            // Serialised from our own database rows, and JSON.stringify
-            // escapes the content; nothing here is attacker-controlled markup.
+            // Serialised with JSON.stringify, which escapes the content.
             dangerouslySetInnerHTML={{ __html: JSON.stringify(json) }}
+        />
+    );
+}
+
+// One Product node per listing. A range becomes an AggregateOffer, a single
+// price an Offer, and a listing with no price gets no offers at all — a zero
+// there reads as free.
+function ProductJsonLd({ detail }: { detail: BusinessDetail }) {
+    const { business, listings } = detail;
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const pageUrl = `${siteUrl}/business/${business.vendor_slug}`;
+
+    const seller = {
+        "@type": "LocalBusiness",
+        "@id": `${pageUrl}#business`,
+        name: business.vendor_name,
+    };
+
+    const products = listings.map((item) => {
+        const price = toNumber(item.price);
+        const priceMax = toNumber(item.price_max);
+
+        const product: Record<string, unknown> = {
+            "@type": "Product",
+            "@id": `${pageUrl}#listing-${item.listing_id}`,
+            name: item.title,
+            url: `${pageUrl}#services`,
+        };
+
+        if (item.description) product.description = item.description;
+
+        if (price > 0 && priceMax > price) {
+            product.offers = {
+                "@type": "AggregateOffer",
+                priceCurrency: "BDT",
+                lowPrice: price,
+                highPrice: priceMax,
+                availability: "https://schema.org/InStock",
+                seller,
+            };
+        } else if (price > 0) {
+            product.offers = {
+                "@type": "Offer",
+                priceCurrency: "BDT",
+                price,
+                availability: "https://schema.org/InStock",
+                seller,
+            };
+        }
+
+        if (item.min_order_qty) {
+            product.additionalProperty = {
+                "@type": "PropertyValue",
+                name: "Minimum order quantity",
+                value: item.min_order_qty,
+                unitText: item.unit ?? undefined,
+            };
+        }
+
+        return product;
+    });
+
+    // An empty @graph is invalid, so a business with no listings emits nothing.
+    if (products.length === 0) return null;
+
+    return (
+        <script
+            type="application/ld+json"
+            // Serialised with JSON.stringify, which escapes the content.
+            dangerouslySetInnerHTML={{
+                __html: JSON.stringify({ "@context": "https://schema.org", "@graph": products }),
+            }}
         />
     );
 }

@@ -20,7 +20,7 @@ import { t, localeHref, pick, type Locale } from "@/lib/i18n";
 import { formatClockTime, formatRating, localiseDigits, toNumber } from "@/lib/format";
 import type { BusinessDetail } from "@/lib/types";
 
-/** Maps a stored `vendor_facts.fact_icon` to a component. */
+/** Icon components keyed by the value stored in `vendor_facts.fact_icon`. */
 const FACT_ICONS: Record<string, LucideIcon> = {
     calendar: CalendarDays,
     badge: Award,
@@ -57,15 +57,17 @@ export function BusinessSidebar({
     const { business, hours, facts, similar } = detail;
     const quickFacts = facts.filter((f) => f.group === "quick");
 
-    // Matches PostgreSQL's EXTRACT(DOW), which is what the hours rows use.
-    // Computed in Asia/Dhaka so "today" means today where the shop is.
+    // Matches PostgreSQL EXTRACT(DOW), used by the opening hours rows.
+    // Evaluated in Asia/Dhaka so the current day reflects the business's
+    // local date.
     const todayIndex = new Date(
         new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" })
     ).getDay();
 
     const lat = business.vendor_lat;
     const lng = business.vendor_lng;
-    // Plain Google Maps URL — needs no API key, and opens the app on a phone.
+    // Standard Google Maps URL; requires no API key and opens the native
+    // application on mobile devices.
     const directionsUrl =
         lat && lng
             ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
@@ -241,8 +243,9 @@ export function BusinessSidebar({
 }
 
 /**
- * Drawn, not a real map — see the note in SearchSidebar. Swap for Leaflet
- * with OpenStreetMap tiles when maps become scope; no API key needed.
+ * Schematic location illustration.
+ *
+ * Placeholder pending an interactive map provider. See SearchSidebar.
  */
 function LocationSketch({ address }: { address: string | null }) {
     return (

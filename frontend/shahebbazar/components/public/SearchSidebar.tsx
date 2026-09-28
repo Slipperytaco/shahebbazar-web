@@ -5,7 +5,7 @@ import { t, localeHref, pick, type Locale } from "@/lib/i18n";
 import { localiseDigits } from "@/lib/format";
 import type { Facet } from "@/lib/types";
 
-/** The right-hand rail on the search results page. */
+/** Search results sidebar: area map, facet filters and a listing prompt. */
 export function SearchSidebar({
     locale,
     query,
@@ -132,15 +132,7 @@ function FacetList({
     );
 }
 
-/**
- * A drawn map, not a real one.
- *
- * A live map needs an API key and a paid tier, and the client has not
- * provided either. Rather than leave a grey box or ship a broken embed,
- * this sketches the search area and labels the places that actually have
- * results. Swap it for Leaflet + OpenStreetMap tiles — no key required —
- * when maps become scope.
- */
+// Schematic area map.
 function AreaMap({ areas }: { areas: Facet[] }) {
     const labels = areas.slice(0, 5).map((a) => a.name);
 

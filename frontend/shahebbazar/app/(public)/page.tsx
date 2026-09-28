@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { AppShell } from "@/components/public/AppShell";
 import { Hero } from "@/components/public/Hero";
 import { CategoryGrid } from "@/components/public/CategoryGrid";
@@ -7,33 +8,23 @@ import { WhyShahebbazar, PopularSearches, UpcomingEvents } from "@/components/pu
 import { getHomeData } from "@/lib/api";
 import { resolveLocale } from "@/lib/i18n";
 
-/**
- * Home page.
- *
- * A server component. It awaits the API before returning markup, so the
- * HTML that reaches the browser — and Googlebot — already contains every
- * category, business and event. The client's scope email requires
- * server-side rendering for exactly this reason, and the previous
- * `"use client"` + `useEffect` pages did the opposite.
- */
+// Home page.
 
 export const metadata: Metadata = {
-    title: "Shahebbazar — Find businesses and services in Rajshahi",
-    description:
-        "Your local directory to discover, connect and support businesses in Rajshahi. Browse medical, tourism, restaurants, shopping, education and services.",
-    alternates: { canonical: "/" },
-    openGraph: {
+    ...pageMetadata({
         title: "Shahebbazar — Find businesses and services in Rajshahi",
         description:
-            "Your local directory to discover, connect and support businesses in your community.",
-        url: "/",
-    },
+            "Your local directory to discover, connect and support businesses in Rajshahi. Browse medical, tourism, restaurants, shopping, education and services.",
+        path: "/",
+    }),
+    // The home page is the brand itself, so the layout's " | Shahebbazar" suffix is not added.
+    title: { absolute: "Shahebbazar — Find businesses and services in Rajshahi" },
 };
 
 export default async function HomePage({
     searchParams,
 }: {
-    // A Promise in Next 15+, so it has to be awaited before use.
+    // Resolved asynchronously in Next.js 15 and later.
     searchParams: Promise<{ lang?: string }>;
 }) {
     const [{ lang }, data] = await Promise.all([searchParams, getHomeData()]);
@@ -60,14 +51,7 @@ export default async function HomePage({
     );
 }
 
-/**
- * Structured data for the site itself.
- *
- * The client asked for JSON-LD on merchant listings — that belongs on the
- * business profile page as `LocalBusiness`. What belongs here is
- * `WebSite` with a SearchAction, which is what lets Google render a
- * sitelinks search box for the domain.
- */
+// Site-level structured data.
 function SiteJsonLd() {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
@@ -90,8 +74,7 @@ function SiteJsonLd() {
     return (
         <script
             type="application/ld+json"
-            // Values are our own constants, not user input, so there is
-            // nothing here for a visitor to inject into.
+            // Serialised from application constants, not user input.
             dangerouslySetInnerHTML={{ __html: JSON.stringify(json) }}
         />
     );

@@ -1,0 +1,63 @@
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import { Star } from "lucide-react";
+import { apiGet, getVendorSummary } from "@/lib/api";
+import { formatDateTime } from "@/lib/format";
+import { ProviderShell, parseVendorParam } from "@/components/provider/ProviderShell";
+import type { OwnerReview } from "@/lib/types";
+import { ReplyForm } from "./ReplyForm";
+
+export const metadata: Metadata = {
+    title: "Reviews",
+};
+
+export default async function OwnerReviewsPage({ searchParams }: { searchParams: Promise<{ vendor?: string }> }) {
+    const vendorId = parseVendorParam((await searchParams).vendor);
+    if (vendorId === null) redirect("/vendors/dashboard");
+    const [vendor, reviews] = await Promise.all([
+        getVendorSummary(vendorId),
+        apiGet<OwnerReview[]>(`/vendors/${vendorId}/reviews`),
+    ]);
+    if (!vendor) notFound();
+
+    const written = (reviews ?? []).filter((r) => r.body);
+    const average = reviews && reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0;
+
+    return (
+        <ProviderShell vendor={vendor} current="reviews">
+            <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">Reviews</h1>
+            <p className="mt-1.5 text-[0.9375rem] text-muted">
+                {reviews?.length ?? 0} ratings · average {average.toFixed(1)} · {written.length} written reviews.
+                Unanswered reviews are listed first.
+            </p>
+
+            {written.length === 0 ? (
+                <p className="mt-5 text-sm text-muted">No written reviews yet.</p>
+            ) : (
+                <ul className="mt-5 space-y-3">
+                    {written.map((review) => (
+                        <li key={review.review_id} className="rounded-xl border border-line bg-surface p-4 shadow-card">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="font-semibold">{review.author}</span>
+                                <span className="text-xs text-soft">
+                                    {review.status === "pending" ? "Awaiting moderation · " : ""}
+                                    {formatDateTime(review.created_at)}
+                                </span>
+                            </div>
+                            <div className="mt-1 flex gap-0.5">
+                                {[1, 2, 3, 4, 5].map((i) => (
+                                    <Star
+                                        key={i}
+                                        className={`size-3.5 ${i <= review.rating ? "fill-star text-star" : "fill-slate-200 text-slate-200"}`}
+                                    />
+                                ))}
+                            </div>
+                            <p className="mt-2 text-sm text-muted">{review.body}</p>
+                            <ReplyForm vendorId={vendorId} reviewId={review.review_id} initial={review.reply} />
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </ProviderShell>
+    );
+}

@@ -1,52 +1,43 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist } from "next/font/google";
+import { NavigationTracker } from "@/components/analytics/NavigationTracker";
 import "./globals.css";
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+    variable: "--font-geist-sans",
+    subsets: ["latin"],
+    display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// Site-wide metadata.
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export const metadata: Metadata = {
-  title: "ShahebBazar",
-  description: "Vendor marketplace platform",
+    metadataBase: new URL(siteUrl),
+    title: {
+        default: "Shahebbazar — Rajshahi's local business directory",
+        template: "%s | Shahebbazar",
+    },
+    description:
+        "Find trusted businesses and services across Rajshahi. Search shops, clinics, hotels, restaurants and suppliers by what they actually sell.",
+    openGraph: {
+        type: "website",
+        siteName: "Shahebbazar",
+        locale: "en_GB",
+        alternateLocale: "bn_BD",
+    },
+    twitter: { card: "summary_large_image" },
+    robots: { index: true, follow: true },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-[#F0F2F5] text-[#1C1E21]">
-
-        {/* Top Navigation Bar */}
-        <nav className="w-full bg-[#1877F2] text-white p-4 shadow-md">
-          <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <h1 className="text-xl font-semibold">ShahebBazar</h1>
-
-            <div className="flex gap-6 text-sm">
-              <a href="/" className="hover:opacity-80">Home</a>
-              <a href="/vendors/register" className="hover:opacity-80">Vendor Sign Up</a>
-              <a href="/vendors/dashboard" className="hover:opacity-80">Vendor Dashboard</a>
-              <a href="/vendors/dashboard/add-listing" className="hover:opacity-80">Add Listing</a>
-              <a href="/vendors" className="hover:opacity-80">Vendors</a>
-              <a href="/search" className="hover:opacity-80">Search</a>
-            </div>
-          </div>
-        </nav>
-
-        {/* Main Content */}
-        <main className="max-w-6xl mx-auto w-full p-6">
-          {children}
-        </main>
-
-      </body>
-    </html>
-  );
+    return (
+        // The document language is set per page in AppShell, since layouts cannot read the locale parameter.
+        <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
+            <body className="min-h-full">
+                <NavigationTracker />
+                {children}
+            </body>
+        </html>
+    );
 }

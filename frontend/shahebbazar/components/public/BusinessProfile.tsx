@@ -2,32 +2,36 @@ import Link from "next/link";
 import {
     Award,
     BadgeCheck,
-    Bookmark,
     Building2,
+    Flag,
     CalendarDays,
     ExternalLink,
     Images,
     MapPin,
     MessageSquare,
+    MessageSquareText,
     Navigation,
     Phone,
     Share2,
     Star,
 } from "lucide-react";
+import { SiFacebook, SiInstagram, SiTiktok, SiYoutube } from "@icons-pack/react-simple-icons";
 import { assetUrl } from "@/lib/api";
-import { t, localeHref, pick, type Locale } from "@/lib/i18n";
+import { t, pick, type Locale } from "@/lib/i18n";
 import { formatClockTime, formatRating, localiseDigits, toNumber } from "@/lib/format";
-import type { BusinessDetail } from "@/lib/types";
+import type { BusinessDetail, SocialPlatform } from "@/lib/types";
+import { SaveButton } from "@/components/customer/SaveButton";
+import { ReviewForm } from "@/components/customer/ReviewForm";
 
-/**
- * The main column of a business profile.
- *
- * The design shows tabs across the top (Overview / Services / Reviews /
- * Photos / About). They are rendered as anchor links to sections on the
- * same page rather than as JavaScript tab panels, for two reasons: the
- * whole profile stays in the HTML for crawlers, which is the point of this
- * page, and it needs no client component.
- */
+// Brand marks come from Simple Icons; lucide excludes logos.
+const SOCIAL = {
+    facebook: { Icon: SiFacebook, label: "Facebook" },
+    instagram: { Icon: SiInstagram, label: "Instagram" },
+    youtube: { Icon: SiYoutube, label: "YouTube" },
+    tiktok: { Icon: SiTiktok, label: "TikTok" },
+} satisfies Record<SocialPlatform, unknown>;
+
+// Business profile content column.
 export function BusinessProfile({
     locale,
     detail,
@@ -41,6 +45,8 @@ export function BusinessProfile({
     const name = pick(locale, business.vendor_name, business.vendor_name_bn);
     const cover = assetUrl(business.vendor_cover_url);
     const aboutFacts = facts.filter((f) => f.group === "about");
+    // Older API responses have no social field.
+    const social = detail.social ?? [];
     const reviewCount = toNumber(business.review_count);
     const closes = formatClockTime(business.close_time_today);
 
@@ -154,7 +160,7 @@ export function BusinessProfile({
                     </div>
                 </div>
 
-                {/* Anchor links, not JavaScript tabs — see the note above. */}
+                {/* In-page anchors rather than tab panels. */}
                 <nav
                     aria-label="Sections"
                     className="flex gap-1 overflow-x-auto border-t border-line px-5 sm:px-6"
@@ -190,7 +196,7 @@ export function BusinessProfile({
                         {business.vendor_description}
                     </p>
 
-                    {(aboutFacts.length > 0 || business.vendor_website) && (
+                    {(aboutFacts.length > 0 || business.vendor_website || social.length > 0) && (
                         <dl className="space-y-2.5">
                             {aboutFacts.map((fact) => (
                                 <div
@@ -225,6 +231,30 @@ export function BusinessProfile({
                                     </dd>
                                 </div>
                             )}
+
+                            {social.length > 0 && (
+                                <div className="flex items-center justify-between gap-4 text-[0.875rem]">
+                                    <dt className="text-muted">{copy.follow}</dt>
+                                    <dd className="flex gap-2">
+                                        {social.map((link) => {
+                                            const { Icon, label } = SOCIAL[link.platform];
+                                            return (
+                                                <a
+                                                    key={link.platform}
+                                                    href={link.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer nofollow"
+                                                    aria-label={`${name} on ${label}`}
+                                                    title={label}
+                                                    className="grid size-8 place-items-center rounded-full bg-brand-600 text-white transition-opacity hover:opacity-85"
+                                                >
+                                                    <Icon size={15} />
+                                                </a>
+                                            );
+                                        })}
+                                    </dd>
+                                </div>
+                            )}
                         </dl>
                     )}
                 </div>
@@ -246,6 +276,8 @@ export function BusinessProfile({
                     <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {listings.map((item) => {
                             const price = toNumber(item.price);
+                            const priceMax = toNumber(item.price_max);
+                            const minOrder = item.min_order_qty ?? 0;
                             return (
                                 <li
                                     key={item.listing_id}
@@ -259,17 +291,42 @@ export function BusinessProfile({
                                             {item.description}
                                         </p>
                                     )}
-                                    {price > 0 && (
-                                        <p className="mt-2 text-[0.8125rem] font-medium text-brand-700">
-                                            ৳{localiseDigits(price.toLocaleString("en-US"), locale)}
-                                            {item.unit && (
-                                                <span className="font-normal text-muted">
-                                                    {" "}
-                                                    / {item.unit}
-                                                </span>
-                                            )}
+                                    <p className="mt-2 text-[0.8125rem] font-medium text-brand-700">
+                                        {price > 0 ? (
+                                            <>
+                                                {formatTaka(price, locale)}
+                                                {priceMax > price && (
+                                                    <> – {formatTaka(priceMax, locale)}</>
+                                                )}
+                                                {item.unit && (
+                                                    <span className="font-normal text-muted">
+                                                        {" "}
+                                                        / {item.unit}
+                                                    </span>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <span className="font-normal text-muted">
+                                                {copy.priceOnRequest}
+                                            </span>
+                                        )}
+                                    </p>
+
+                                    {minOrder > 0 && (
+                                        <p className="mt-1 text-[0.75rem] text-muted">
+                                            {copy.minOrder}:{" "}
+                                            {localiseDigits(minOrder.toLocaleString("en-US"), locale)}
+                                            {item.unit ? ` ${item.unit}` : ""}
                                         </p>
                                     )}
+
+                                    <Link
+                                        href={`/account/messages/new?vendor=${business.vendor_slug}&listing=${item.listing_id}`}
+                                        className="mt-2.5 inline-flex items-center gap-1.5 text-[0.8125rem] font-medium text-brand-600 hover:underline"
+                                    >
+                                        <MessageSquareText className="size-3.5" />
+                                        {copy.askAboutThis}
+                                    </Link>
                                 </li>
                             );
                         })}
@@ -333,14 +390,18 @@ export function BusinessProfile({
                             })}
                         </ul>
 
-                        {/* Needs an account, so it points at sign-in rather
-                            than a form that cannot submit. */}
-                        <Link
-                            href={localeHref("/login", locale)}
-                            className="mt-4 flex w-full items-center justify-center rounded-[10px] bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
-                        >
-                            {copy.writeReview}
-                        </Link>
+                        <ReviewForm
+                            slug={business.vendor_slug}
+                            copy={{
+                                writeReview: copy.writeReview,
+                                updateReview: copy.updateReview,
+                                yourRating: copy.yourRating,
+                                reviewPlaceholder: copy.reviewPlaceholder,
+                                submitReview: copy.submitReview,
+                                reviewSaved: copy.reviewSaved,
+                                cancel: copy.cancel,
+                            }}
+                        />
                     </div>
 
                     <div>
@@ -385,6 +446,23 @@ export function BusinessProfile({
                                         <p className="mt-2.5 text-[0.875rem] leading-relaxed text-muted">
                                             {review.body}
                                         </p>
+                                        {review.reply && (
+                                            <div className="mt-3 rounded-lg border-l-2 border-brand-500 bg-surface-2 px-3 py-2">
+                                                <p className="text-[0.75rem] font-semibold text-brand-700">
+                                                    {copy.ownerReply}
+                                                </p>
+                                                <p className="mt-0.5 text-[0.8125rem] leading-relaxed text-muted">
+                                                    {review.reply}
+                                                </p>
+                                            </div>
+                                        )}
+                                        <Link
+                                            href={`/report?type=review&id=${review.review_id}&back=${business.vendor_slug}`}
+                                            className="mt-2 inline-flex items-center gap-1 text-[0.75rem] text-soft hover:text-error-ink"
+                                        >
+                                            <Flag className="size-3" />
+                                            {copy.report}
+                                        </Link>
                                     </li>
                                 ))}
                             </ul>
@@ -428,6 +506,10 @@ export function BusinessProfile({
     );
 }
 
+function formatTaka(value: number, locale: Locale): string {
+    return `৳${localiseDigits(value.toLocaleString("en-US"), locale)}`;
+}
+
 function ActionButtons({ locale, detail }: { locale: Locale; detail: BusinessDetail }) {
     const copy = t(locale);
     const { business } = detail;
@@ -441,8 +523,7 @@ function ActionButtons({ locale, detail }: { locale: Locale; detail: BusinessDet
                   `${business.vendor_name} ${business.vendor_address ?? "Rajshahi"}`
               )}`;
 
-    // WhatsApp rather than the Web Share API: sharing has to work without
-    // JavaScript, and WhatsApp is how a link actually travels here.
+    // A WhatsApp share link instead of the Web Share API, which needs JavaScript and is not in every browser.
     const shareUrl = `https://wa.me/?text=${encodeURIComponent(
         `${business.vendor_name} — ${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/business/${business.vendor_slug}`
     )}`;
@@ -457,10 +538,8 @@ function ActionButtons({ locale, detail }: { locale: Locale; detail: BusinessDet
                 {copy.call}
             </a>
 
-            {/* Messaging needs an account and the inbox is not built, so
-                this goes to sign-in rather than nowhere. */}
             <Link
-                href={localeHref("/login", locale)}
+                href={`/account/messages/new?vendor=${business.vendor_slug}`}
                 className="col-span-2 inline-flex items-center justify-center gap-2 rounded-[10px] border border-line-strong bg-surface px-4 py-2.5 text-sm font-medium text-brand-600 transition-colors hover:border-brand-600 hover:bg-brand-50"
             >
                 <MessageSquare className="size-4" />
@@ -477,13 +556,7 @@ function ActionButtons({ locale, detail }: { locale: Locale; detail: BusinessDet
                 {copy.getDirections}
             </a>
 
-            <Link
-                href={localeHref("/login", locale)}
-                className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-line-strong bg-surface px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:border-brand-600 hover:text-brand-600"
-            >
-                <Bookmark className="size-4" />
-                {copy.save}
-            </Link>
+            <SaveButton vendorId={business.vendor_id} label={copy.save} savedLabel={copy.saved} />
 
             <a
                 href={shareUrl}
@@ -494,6 +567,14 @@ function ActionButtons({ locale, detail }: { locale: Locale; detail: BusinessDet
                 <Share2 className="size-4" />
                 {copy.share}
             </a>
+
+            <Link
+                href={`/report?type=vendor&id=${business.vendor_id}&back=${business.vendor_slug}`}
+                className="col-span-2 inline-flex items-center justify-center gap-1.5 py-1 text-[0.75rem] text-soft hover:text-error-ink"
+            >
+                <Flag className="size-3" />
+                {copy.reportBusiness}
+            </Link>
         </div>
     );
 }
@@ -508,7 +589,7 @@ function FactIcon({ name }: { name: string | null }) {
     return <Icon className="size-4" />;
 }
 
-/** "2 weeks ago" — computed on the server, so no hydration mismatch. */
+/** Formats a timestamp as a relative description, evaluated on the server. */
 function relativeTime(iso: string): string {
     const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
     if (days < 1) return "today";
