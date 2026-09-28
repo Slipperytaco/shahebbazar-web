@@ -11,13 +11,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-/**
- * Converts a business name to a URL slug.
- *
- * Non-Latin names strip to an empty string -- Bangla has no ASCII
- * equivalent -- so the caller must handle the empty result rather than
- * writing a slug of "".
- */
+// Converts a business name to a URL slug.
 function slugify(text) {
     return String(text)
         .normalize('NFKD')
@@ -29,13 +23,7 @@ function slugify(text) {
         .replace(/^-|-$/g, '');
 }
 
-/**
- * Finds a free slug, appending -2, -3 ... on collision.
- *
- * vendors.vendor_slug is UNIQUE, so this reads the taken values first
- * rather than inserting and catching the violation: inside a transaction
- * a failed statement aborts the whole thing.
- */
+// Finds a free slug, appending -2, -3 ... on collision, by reading the taken values first.
 async function uniqueSlug(client, base) {
     const stem = base || 'vendor';
 
@@ -53,13 +41,7 @@ async function uniqueSlug(client, base) {
     return `${stem}-${n}`;
 }
 
-/**
- * Resolves a free-text city or area to a locations row.
- *
- * @returns location_id, or null when nothing matches. location_id is
- *          nullable, so an unrecognised place name is not a failure --
- *          the business is simply not filed under an area yet.
- */
+// Resolves a free-text city or area to a locations row; an unknown place simply leaves it unset.
 async function resolveLocation(client, city) {
     if (!city || !city.trim()) return null;
 
@@ -76,25 +58,7 @@ async function resolveLocation(client, city) {
     return rows.length ? rows[0].location_id : null;
 }
 
-/**
- * Vendor registration.
- *
- * Creates the owning account and the business profile together. Identity
- * lives on `users` and the business profile on `vendors`, so registration
- * writes both -- one account can later hold several businesses.
- *
- * Wrapped in a transaction: without one, a failure on the second insert
- * would leave an account with no business and block the phone number from
- * being used again.
- *
- * No password is stored. The client specified phone OTP, and
- * users.user_password_hash stays NULL until that exists;
- * user_phone_verified_at stays NULL to mark the number as unverified.
- *
- * The business is created with vendor_status 'pending' (the column
- * default), so it is invisible to the public API until an admin approves
- * it -- v_business_cards filters on that status.
- */
+// Vendor registration.
 router.post('/', async (req, res) => {
     const {
         vendor_name,
@@ -150,8 +114,7 @@ router.post('/', async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
 
-        // 23505 is a unique violation. Report which value collided rather
-        // than the raw constraint name.
+        // 23505 is a unique violation.
         if (err.code === '23505') {
             const field = err.constraint === 'users_user_email_key' ? 'email address' : 'phone number';
             return res.status(409).json({
