@@ -1,12 +1,6 @@
 import type { Locale } from "./i18n";
 
-/**
- * Display formatting helpers.
- *
- * Invoked from server components only. Formatting dates on both server
- * and client would produce a hydration mismatch where the two timezones
- * differ.
- */
+// Display formatting helpers.
 
 /** Converts a `pg` NUMERIC value to a number, returning 0 when unparseable. */
 export function toNumber(value: string | number | null | undefined): number {
@@ -20,11 +14,7 @@ export function formatRating(value: string | number | null | undefined): string 
     return toNumber(value).toFixed(1);
 }
 
-/**
- * Formats a SQL TIME value as a 12-hour clock time.
- *
- * @returns Formatted time, or null when the input is absent or invalid.
- */
+// Formats a SQL TIME value as a 12-hour clock time.
 export function formatClockTime(sqlTime: string | null): string | null {
     if (!sqlTime) return null;
     const [hStr, mStr] = sqlTime.split(":");
@@ -37,12 +27,7 @@ export function formatClockTime(sqlTime: string | null): string | null {
     return `${display}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
-/**
- * Splits a date into abbreviated month and day for the event date block.
- *
- * Fixed to Asia/Dhaka so dates do not shift when the server runs in
- * another timezone.
- */
+// Splits a date into abbreviated month and day for the event date block.
 export function formatEventDate(iso: string): { month: string; day: string } {
     const date = new Date(iso);
     return {
@@ -82,4 +67,16 @@ const BN_DIGITS = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮"
 export function localiseDigits(text: string, locale: Locale): string {
     if (locale !== "bn") return text;
     return text.replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)]);
+}
+
+// Formats a timestamp as a short date and time in Dhaka time.
+export function formatDateTime(iso: string): string {
+    return new Date(iso).toLocaleString("en-GB", {
+        timeZone: "Asia/Dhaka",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+    });
 }
