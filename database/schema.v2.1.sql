@@ -1,30 +1,8 @@
--- =====================================================================
--- Shahebbazar -- schema v2.1 (additive)
--- =====================================================================
---
--- Adds three tables required by the home page and business profile that
--- schema.v2.sql does not provide:
---
---   vendor_opening_hours  open state indicator and the weekly hours table
---   events                the upcoming events list
---   saved_businesses      per-account bookmarks
---
--- Run AFTER schema.v2.sql and before seed.v2.sql, or on top of an already
--- seeded database -- it only adds.
--- =====================================================================
+-- Schema v2.1 (additive): opening hours, events, saved businesses and the business card view.
 
 BEGIN;
 
--- ---------------------------------------------------------------------
--- Opening hours
---
--- One row per day per vendor. day_of_week follows PostgreSQL EXTRACT(DOW)
--- (0 = Sunday to 6 = Saturday) so the open-state comparison requires no
--- mapping in the application.
---
--- An absent row means hours are not recorded. This must be rendered as
--- unknown rather than as closed.
--- ---------------------------------------------------------------------
+-- Opening hours: one row per day per vendor; day_of_week follows EXTRACT(DOW), 0 = Sunday.
 CREATE TABLE vendor_opening_hours (
     hours_id        SERIAL PRIMARY KEY,
     vendor_id       INT NOT NULL REFERENCES vendors(vendor_id) ON DELETE CASCADE,
@@ -43,12 +21,7 @@ CREATE TABLE vendor_opening_hours (
 );
 CREATE INDEX idx_hours_vendor ON vendor_opening_hours (vendor_id);
 
--- ---------------------------------------------------------------------
--- Events
---
--- Platform-wide events. vendor_id is nullable because most events have no
--- owning business.
--- ---------------------------------------------------------------------
+-- Events: platform-wide events. vendor_id is nullable because most events have no owning business.
 CREATE TABLE events (
     event_id          SERIAL PRIMARY KEY,
     event_title       VARCHAR(255) NOT NULL,
@@ -70,9 +43,7 @@ CREATE TABLE events (
 CREATE INDEX idx_events_upcoming ON events (event_starts_at)
     WHERE event_status = 'published';
 
--- ---------------------------------------------------------------------
 -- Per-account saved businesses
--- ---------------------------------------------------------------------
 CREATE TABLE saved_businesses (
     user_id    INT NOT NULL REFERENCES users(user_id)     ON DELETE CASCADE,
     vendor_id  INT NOT NULL REFERENCES vendors(vendor_id) ON DELETE CASCADE,
@@ -81,16 +52,7 @@ CREATE TABLE saved_businesses (
 );
 CREATE INDEX idx_saved_vendor ON saved_businesses (vendor_id);
 
--- ---------------------------------------------------------------------
--- Public business card
---
--- Shared projection for every business list: name, primary category,
--- area, rating, review count and open state. Centralising the derivation
--- keeps the rating calculation in one place.
---
--- Open state is evaluated in the database session timezone, which must be
--- set to Asia/Dhaka in deployed environments.
--- ---------------------------------------------------------------------
+-- Public business card view: name, primary category, area, rating, review count and open state.
 CREATE VIEW v_business_cards AS
 SELECT
     v.vendor_id,
