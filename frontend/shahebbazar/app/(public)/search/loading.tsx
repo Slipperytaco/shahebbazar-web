@@ -1,13 +1,7 @@
 import { AppShell } from "@/components/public/AppShell";
 import { BusinessListSkeleton, LoadingAnnouncement, Skeleton } from "@/components/shared/Skeleton";
 
-// Search is the only public route with a loading file, on purpose. A
-// loading.tsx makes its segment stream, which commits a 200 before the body
-// renders — so a later notFound() can no longer set the status and an unknown
-// slug answers 200 with "not found" in the body. /categories/[slug] and
-// /business/[slug] both call notFound(), so neither may have one.
-//
-// The locale defaults to English because a loading file gets no search params.
+// Only search has a loading file: on a route that calls notFound() it would turn the 404 into a 200.
 export default function Loading() {
     return (
         <AppShell locale="en" current="/search">
