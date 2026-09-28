@@ -1,13 +1,5 @@
 #!/usr/bin/env node
-/**
- * Database loader.
- *
- * Creates the database if required and applies the schema and seed files
- * in order, using the connection settings in backend/.env.
- *
- *   npm run db:load     apply schema and seed
- *   npm run db:reset    drop, recreate, then apply (prompts for confirmation)
- */
+// Database loader.
 
 const fs = require("fs");
 const path = require("path");
@@ -28,6 +20,11 @@ const FILES = [
     "seed.v2.2.sql",
     "schema.v2.3.sql",
     "seed.v2.3.sql",
+    "schema.v2.4.sql",
+    "seed.v2.4.sql",
+    "schema.v2.5.sql",
+    "schema.v2.6.sql",
+    "seed.v2.6.sql",
 ];
 
 const dbName = process.env.PGDATABASE || "shahebbazar";
@@ -113,8 +110,7 @@ async function main() {
     try {
         for (const file of FILES) {
             const sql = fs.readFileSync(path.join(DATABASE_DIR, file), "utf8");
-            // Each file manages its own transaction, so one statement per file
-            // is applied atomically.
+            // Each file manages its own transaction, so one statement per file is applied atomically.
             await client.query(sql);
             console.log(`  applied ${file}`);
         }
