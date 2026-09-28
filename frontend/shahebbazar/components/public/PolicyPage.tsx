@@ -3,8 +3,7 @@ import { ChevronRight, FileText } from "lucide-react";
 import { AppShell } from "./AppShell";
 import { localeHref, t, type Locale } from "@/lib/i18n";
 
-// Terms, Privacy and Refunds share this frame so they read as a set — and so
-// the draft notice cannot be added to one and forgotten on another.
+// Shared frame for Terms, Privacy and Refunds, so the draft notice appears on all three.
 
 export type PolicySection = {
     heading: string;
@@ -44,8 +43,7 @@ export function PolicyPage({
                 <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">{title}</h1>
                 <p className="mt-1.5 text-[0.8125rem] text-muted">Last updated {updated}</p>
 
-                {/* The wording is a draft, not legal advice. The page says so
-                    rather than implying a reviewed document. */}
+                {/* The wording is a draft, not legal advice. */}
                 <aside className="mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
                     <FileText className="mt-0.5 size-4 shrink-0 text-amber-600" />
                     <p className="text-[0.8125rem] leading-relaxed text-amber-900">
