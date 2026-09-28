@@ -1,10 +1,4 @@
-/**
- * Schema verification.
- *
- * Confirms that the database objects the API depends on exist. Connecting
- * successfully does not imply a loaded schema: `SELECT NOW()` succeeds
- * against an empty database while every data endpoint returns 500.
- */
+// Schema verification.
 
 const pool = require("../db");
 
@@ -25,16 +19,17 @@ const REQUIRED_OBJECTS = {
     v_business_cards: "schema.v2.1.sql",
     vendor_facts: "schema.v2.2.sql",
     vendor_payment_methods: "schema.v2.3.sql",
+    vendor_search_impressions: "schema.v2.4.sql",
+    vendor_photos: "schema.v2.5.sql",
+    vendor_social_links: "schema.v2.5.sql",
 };
 
-/**
- * Checks all required objects in a single query.
- *
- * `to_regclass` returns NULL rather than raising for an absent object,
- * allowing every name to be tested in one round trip.
- *
- * @returns {Promise<{ok: boolean, missing: Array<{name: string, file: string}>, missingFiles: string[]}>}
- */
+// Required columns added to existing tables, as "table.column".
+const REQUIRED_COLUMNS = {
+    "reviews.review_reply": "schema.v2.6.sql",
+};
+
+// Checks all required objects in a single query.
 async function verifySchema() {
     const names = Object.keys(REQUIRED_OBJECTS);
 
@@ -44,9 +39,20 @@ async function verifySchema() {
         [names]
     );
 
-    const missing = rows
-        .filter((row) => !row.present)
-        .map((row) => ({ name: row.name, file: REQUIRED_OBJECTS[row.name] }));
+    const columns = await pool.query(
+        `SELECT c AS name, EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_schema = current_schema()
+               AND table_name = split_part(c, '.', 1) AND column_name = split_part(c, '.', 2)
+         ) AS present
+         FROM unnest($1::text[]) AS c`,
+        [Object.keys(REQUIRED_COLUMNS)]
+    );
+
+    const missing = [
+        ...rows.filter((row) => !row.present).map((row) => ({ name: row.name, file: REQUIRED_OBJECTS[row.name] })),
+        ...columns.rows.filter((row) => !row.present).map((row) => ({ name: row.name, file: REQUIRED_COLUMNS[row.name] })),
+    ];
 
     return {
         ok: missing.length === 0,
@@ -55,10 +61,7 @@ async function verifySchema() {
     };
 }
 
-/**
- * Logs schema status at startup so an incomplete database is reported
- * before the first request fails.
- */
+// Logs schema status at startup so an incomplete database is reported before the first request fails.
 async function reportSchemaAtStartup() {
     try {
         const result = await verifySchema();
