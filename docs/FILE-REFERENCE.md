@@ -28,7 +28,15 @@ Files marked **BROKEN** throw against the current schema.
 | `db.js` | The entire database connection layer, 11 lines. Loads `.env` via dotenv, creates one `pg.Pool`, exports it. Every route file `require`s this same pool — Node caches modules, so there is exactly one pool per process. Connects lazily: creating the pool does not touch Postgres. |
 | `index.js` | Server entry point. Registers middleware **in order** (CORS → JSON body parser → static `/uploads` → three routers → `/api/health` → `/`), starts the listener, prints the schema report at startup, and handles `EADDRINUSE` with the `npx kill-port` remedy instead of a stack trace. |
 | `lib/verifySchema.js` | Checks that the 14 tables and views the API depends on actually exist, in **one** query, using `to_regclass()` (which returns NULL for a missing object instead of raising). Each name is mapped to the SQL file that defines it, so the error tells you which file to run. Used by `/api/health` and by the startup report. |
-| `routes/public.js` | The real API. 478 lines, all read-only, all approved-rows-only. Serves `/api/home`, `/api/categories`, `/api/businesses`, `/api/businesses/:slug`. Contains the two shared SQL constants (`CATEGORY_TILE_SQL`, `BUSINESS_CARD_SQL`), the sort whitelist, the facet queries, and `errorBody()` which hides Postgres messages in production. |
+| `routes/public.js` | The real API. 478 lines, all read-only, all approved-rows-only. Serves `/api/home`, `/api/categories`, `/api/businesses`, `/api/businesses/:slug`. Contains the two shared SQL constants (`CATEGORY_TILE_SQL`, `BUSINESS_CARD_SQL`), the sort whitelist, the facet queries, and `errorBody()` which hides Postgres messages in production. The profile's gallery is the business's own photos first, then listing photos (duplicates skipped), and the response includes `social` links (v2.5). |
+| `routes/analytics.js` | `POST /api/track/search` and `POST /api/track/view`. Writes `search_logs`, `vendor_search_impressions` and `vendor_profile_views`. Drops crawlers by user agent and repeats from the same visitor within 30 minutes. The visitor hash is an HMAC of IP and user agent keyed by `ANALYTICS_SALT` and the date in Dhaka, so it changes daily. Accepts `text/plain` bodies because the browser sends them that way to avoid a CORS preflight. |
+| `routes/vendorDashboard.js` | `GET /api/vendors/:id/dashboard?days=7\|30\|90` — everything the provider dashboard shows in one response, for a business in any status — and `GET /api/vendors/:id/summary` (name, slug, status) for the other provider pages. Periods are whole Dhaka days; the current period includes today. |
+| `routes/vendorProfile.js` | Add / Edit Business: `GET`/`PUT /api/vendors/:id/profile`, logo and photo upload and removal. The save is one transaction (`FOR UPDATE` on the vendor row); categories, hours, facts and social links are replaced as a set, fact icons are kept when a label is saved again, and `vendor_cover_url` is kept equal to the first photo. Uploads get generated names and are checked by file signature, so a renamed script cannot pass as a PNG. |
+| `lib/businessProfile.js` | The form's rules as pure functions: Bangladeshi phone numbers normalised to `+880…` (mobiles and landlines), websites stored without the scheme like the seed rows, social links only on each platform's own domains, times as `HH:MM`, and no closing time past midnight (the open-now badge could not show it). Errors are keyed by field for the form. |
+| `routes/adminModeration.js` | `GET /api/admin/queue` and the approve/reject decisions for businesses and listings. Each decision locks the row, refuses anything no longer pending (409), and writes `audit_logs` with the state before and after, in one transaction. |
+| `routes/seo.js` | `GET /api/sitemap`: approved business slugs with their last update, and active categories that contain at least one approved business (empty category pages are thin content, so they are left out). |
+| `routes/docs.js` | `GET /api/docs` (Swagger UI, pinned version with integrity hashes) and `GET /api/openapi.yaml` (serves `docs/openapi.yaml`). |
+| `scripts/generate-erd.js` | `npm run docs:erd`. Reads tables, keys and foreign keys from the live database and writes `docs/ER-DIAGRAM.md` as Mermaid: one diagram per area and one of everything. |
 | `routes/vendors.js` | **BROKEN.** `GET /` returns `SELECT * FROM vendors` with no status filter — leaks `vendor_rejection_reason` and moderation state to anonymous callers. `POST /` inserts `vendor_password` and `vendor_city`, columns that no longer exist, and omits the required `user_id` and `vendor_slug`. Written against the old `schema.sql`. |
 | `routes/vendorListings.js` | **BROKEN** (the insert). Configures `multer` for photo uploads (generated filenames, JPEG/PNG only). `POST /vendors/:id/listings` inserts `title, description, price, category` — all four renamed in v2. The photo upload, listing fetch and delete routes work. Stores `file.path`, which contains a backslash on Windows and is not a valid URL. |
 | `scripts/load-db.js` | The `db:load` / `db:reset` command. Verifies all six SQL files exist, connects to the `postgres` maintenance database to `CREATE`/`DROP DATABASE` (with `pg_terminate_backend` to kick connections that would block a drop), applies the six files in order, prints row counts. Maps failure codes to remedies. |
@@ -49,6 +57,10 @@ follow the numbers.
 | 4 | `seed.v2.1.sql` | Consumer directory content for the home page — opening hours, events. |
 | 5 | `schema.v2.2.sql` | Additive. Adds `vendors.vendor_website` and the `vendor_facts` table (label/value pairs, so a hospital can record beds and a hotel can record check-in time without a migration per business type). |
 | 6 | `seed.v2.2.sql` | Profile detail: services, facts, written reviews. |
+| — | `schema.v2.3.sql`, `seed.v2.3.sql` | `vendor_payment_methods` and its sample rows. |
+| — | `seed.v2.4.sql` | Sixty days of profile views and search appearances for every approved business, from `hashtext()` so every load gives the same numbers. Today is left empty for live data. |
+| — | `schema.v2.5.sql` | `vendor_photos` (the business's own photos; the first is the cover, and existing covers are copied in as first photos) and `vendor_social_links` (Facebook, Instagram, YouTube, TikTok). |
+| — | `schema.v2.4.sql` | `vendor_search_impressions` (search appearances per business per day, for the provider dashboard), and `v_active_users_daily` redefined to count visitors who searched as well as those who opened a profile. |
 | — | `schema.sql` | **DEAD.** The original schema. Superseded by v2. The two broken routes were written against this. |
 | — | `sampleinput.sql` | **DEAD.** Original seed, 4 lines. |
 | — | `SCHEMA-NOTES.md` | Why v2 differs from v1, mapped to the client's scope email. §4 lists the exact code changes the broken routes need. Read this before arguing with the schema. |
@@ -59,7 +71,7 @@ follow the numbers.
 | --- | --- |
 | `v_business_cards` | Public card projection. Derives primary category, rating, review count and today's open state via `LEFT JOIN LATERAL`, and ends in `WHERE vendor_status = 'approved'` — which is why unapproved shops 404 with no explicit check in the route. `open_state` is three-valued: `open`, `closed`, or NULL meaning *hours unknown*. |
 | `v_search_trends_daily` | Popular-search chips and admin trends. `HAVING COUNT(*) >= 5` suppresses rare terms, so one person's query cannot become a "popular search" or re-identify them. |
-| `v_active_users_daily` | Distinct session hashes per day. Never counts accounts. |
+| `v_active_users_daily` | Distinct visitor hashes per day, across profile views and searches (v2.4). Never counts accounts. |
 | `v_moderation_queue` | `UNION ALL` of pending vendors + pending listings + open reports into one admin list. |
 
 ---
@@ -71,6 +83,9 @@ follow the numbers.
 | `REQUIREMENTS.md` | The client's requirements. |
 | `CODEBASE-GUIDE.html` | Full architectural walkthrough — open in a browser. |
 | `FILE-REFERENCE.md` | This file. |
+| `openapi.yaml` | The API reference: OpenAPI 3.1, all 29 operations, request and response schemas, error shapes. Served at `/api/docs`; importable into Postman. Verified by a contract test that called every operation and validated each real response against it. |
+| `ER-DIAGRAM.md` | Generated ER diagrams (Mermaid, renders on GitHub): six areas plus the full schema. Do not edit by hand; run `npm run docs:erd`. |
+| `erd/` | The same diagrams as SVG files, plus `er-diagram-full.png` for the report. |
 
 ---
 
@@ -102,6 +117,10 @@ adding a URL segment, so `app/(public)/page.tsx` serves `/`, not `/public`.
 | `layout.tsx` | all | The root layout. Renders `<html>`, loads the Geist font, sets site-wide metadata and `metadataBase` (which resolves relative OpenGraph image paths to absolute URLs — link previews require that). |
 | `globals.css` | — | The entire design system. Tailwind 4 `@theme` block declaring every colour, font, and shadow token; `--color-brand-600` generates `bg-brand-600`, `text-brand-600`, `border-brand-600`. Also holds a `@layer components` shim for the legacy `.form-*` classes on the vendor pages. |
 | `favicon.ico` | — | Tab icon. |
+| `sitemap.ts` | `/sitemap.xml` | Home, categories, policy pages, every non-empty category and every approved business. Built per request with the API response cached for an hour; approving a business in `/admin` clears that cache, so it is listed at once. Search results, `?lang=bn` variants and signed-in areas are left out on purpose. |
+| `robots.ts` | `/robots.txt` | Blocks `/admin`, `/vendors/dashboard`, `/account` and `/api/`, and names the sitemap. Search pages stay crawlable (they are noindex, but their links lead to business pages). |
+| `og.png/route.tsx` | `/og.png` | The site-wide 1200x630 share image, rendered at build time. A route rather than an `opengraph-image` file, because file-based images override metadata and would replace every business's cover photo. |
+| `og/business/[slug]/route.tsx` | `/og/business/<slug>` | A generated share card (name, category, area, rating) for a business with no cover photo. Falls back to `/og.png` if the API is down; 404 for an unknown business. |
 | `(public)/layout.tsx` | — | Marks everything below it indexable. Deliberately applies **no** auth gate. Does not render page chrome — that is `AppShell`'s job, because layouts do not receive `searchParams` and the locale is a query parameter. |
 | `(public)/page.tsx` | `/` | Home. An `async` server component: awaits `searchParams` and `getHomeData()` together, then composes Hero + CategoryGrid + FeaturedBusinesses in the main column and three rail cards on the right. Emits `WebSite` JSON-LD with a `SearchAction`. |
 | `(public)/search/page.tsx` | `/search` | Search results. Reads `q`, `category`, `area`, `sort`, `page` from the URL; fetches results and the cached home payload (for the category dropdown) in parallel. Renders sponsored rows in their own labelled block above the organic ones. Pagination is derived from the returned page size, not from `total`, because `total` includes sponsored rows. `noindex, follow` — arbitrary queries would create unbounded near-duplicate pages. |
@@ -109,9 +128,14 @@ adding a URL segment, so `app/(public)/page.tsx` serves `/`, not `/public`.
 | `(public)/vendors/register/page.jsx` | `/vendors/register` | **Legacy.** A `"use client"` form posting directly to `http://localhost:4000` from the browser. Still sends a password field; the client asked for phone OTP. Its POST target is broken. |
 | `(seeker)/layout.tsx` | — | Auth gate for the signed-in customer area. **Currently empty** — a `TODO(auth)` comment and `return children`. Sets `robots: noindex`. |
 | `(seeker)/account/page.tsx` | `/account` | Placeholder. Lists the five sections that belong here (saved businesses, quote requests, messages, reviews, settings) and names the table behind each. No approved design yet. |
+| `(admin)/admin/page.tsx`, `DecisionButtons.tsx`, `actions.ts` | `/admin` | Approvals: Businesses and Listings tabs, each pending item with the details needed to judge it and flags for gaps (no photos, no hours, unverified owner phone), Approve / Reject with a reason, and Recent decisions. A decision refreshes every cached page, so an approved business is live at once. No design was supplied; it follows the provider area. |
+| `(admin)/error.tsx` | — | Error boundary for the admin area. |
 | `(provider)/layout.tsx` | — | Auth gate for shop owners. **Currently empty.** The comment says explicitly these routes must not deploy in this state. |
-| `(provider)/vendors/dashboard/page.jsx` | `/vendors/dashboard` | **Legacy.** Client component. Fetches *every* vendor into a `<select>` and auto-selects the first, because there is no session to say which vendor you are. |
-| `(provider)/vendors/dashboard/add-listing/page.jsx` | — | **Legacy.** The add-listing form. Two-step submit: create the listing, read back `listing_id`, then upload photos as `multipart/form-data`. The first step is broken against v2. |
+| `(provider)/error.tsx` | — | Error boundary for the provider area, with "Try again" (`retry`) and a link home. |
+| `(provider)/vendors/dashboard/page.tsx` | `/vendors/dashboard` | Provider dashboard, built to the design: four stat cards (profile views and search appearances against the previous period, active listings, rating), business preview, the analytics chart with 7/30/90-day tabs, a products preview and quick actions. Server component, one API call. With no `?vendor=` it shows a **development business picker**, because there is no sign-in yet — delete that with auth. |
+| `(provider)/vendors/dashboard/listings/page.tsx`, `ListingsManager.tsx` | `/vendors/dashboard/listings` | Products & Services: the add form (under `#add`) beside the list, which reloads after each save. Reuses `ListingForm` and `VendorListings`. |
+| `(provider)/vendors/dashboard/business/` | `/vendors/dashboard/business` | Edit Business, built to the design: one page of sections (basic information, images and logo, opening hours, products link, additional information, social links) with the progress checklist and a live preview beside it. `BusinessForm.tsx` holds the state and warns before leaving with unsaved changes, including on in-app links; `ImagesSection.tsx` uploads straight to the API; `HoursSection.tsx`; `formParts.tsx`; `actions.ts` saves through the Next server and then clears every cached page, so the change shows on home, search and the profile at once. Edit only: creating a business needs sign-in. |
+| `(provider)/vendors/dashboard/add-listing/page.tsx` | `/vendors/dashboard/add-listing` | Redirect to `listings#add`, so the old address keeps working. |
 | `(provider)/vendors/dashboard/VendorListings.jsx` | — | **Legacy.** Lists and deletes a vendor's listings. Reads `listing.title` / `.price` / `.category`, which v2 renamed. |
 | `(admin)/layout.tsx` | — | Auth gate for admins. **Currently empty.** The comment specifies `notFound()` rather than a redirect, so an unauthorised request is not told the area exists. Documents the admin scope and the four views that support it. |
 | `(admin)/admin/page.tsx` | `/admin` | Placeholder. |
@@ -124,6 +148,33 @@ adding a URL segment, so `app/(public)/page.tsx` serves `/`, not `/public`.
 | `types.ts` | The API contract as TypeScript interfaces, field names matching the database columns exactly. Change a column in Express without changing this and `npm run typecheck` fails — the mismatch surfaces at compile time instead of as blank fields. Documents the `pg` NUMERIC-returns-a-string trap. |
 | `i18n.ts` | Every user-facing string in English and Bangla, 331 lines. Plus `resolveLocale()` (reads `?lang=`), `localeHref()` (appends it to links so the language survives navigation), and `pick(locale, en, bn)` which falls back to the other language when a translation is null, so a field is never rendered empty. No hardcoded English in JSX — that is a hard rule. |
 | `format.ts` | Display formatting, server-side only. `toNumber` (the NUMERIC-string fix), `formatRating`, `formatClockTime` (SQL `TIME` → "9:30 AM"), event date helpers pinned to `Asia/Dhaka`, and `localiseDigits` which maps ASCII digits to Bengali numerals. Timezone is pinned because formatting the same date on both server and client produces a hydration mismatch. |
+
+`seo.ts` (outside the four) builds every public page's metadata through `pageMetadata()`: title, description, canonical URL, and complete OpenGraph and Twitter tags. It exists because Next.js merges metadata shallowly, so a page that sets `openGraph` at all loses the layout's site name, locale and image. `NEXT_PUBLIC_SITE_URL` must be the real domain in production, or every canonical and share link points at localhost.
+
+`analytics.ts` (outside the four) is browser-side: `sendAnalytics()` posts a beacon and never throws, and `viewSource()` works out whether a profile was reached from search, a category page, a shared link or directly. It remembers the previous path itself, because `document.referrer` does not change on client-side navigation.
+
+### components/analytics/ — beacons
+
+| File | What it does |
+| --- | --- |
+| `NavigationTracker.tsx` | In the root layout. Records every pathname change for `viewSource()`. |
+| `SearchBeacon.tsx` | On the search page, first page of a typed query only. Reports the query and the businesses shown. |
+| `ProfileViewBeacon.tsx` | On the business profile. Reports one view with its source. |
+
+### components/provider/ — the shop-owner area
+
+| File | What it does |
+| --- | --- |
+| `ProviderShell.tsx` | Header and navigation rail for every provider page (a scrolling row on phones). Items not built yet are shown disabled, marked "Soon" (this phase) or "Later" (Phase 2). Also exports `providerHref()` and `parseVendorParam()` for the development `?vendor=` parameter. |
+| `DashboardCards.tsx` | The dashboard's panels: `StatCards`, `BusinessPreview`, `ListingsPreview`, `QuickActions`, and `Change`, which shows +/− % with an arrow and never invents a percentage when there is no earlier data. |
+| `TrendChart.tsx` | Client component. Profile views and search appearances as two lines on one axis, drawn at the container's measured width so text stays readable on phones. Crosshair tooltip on hover, touch and arrow keys; today's partial day is dashed; a "Show as table" view carries the same numbers. |
+| `StatusBadge.tsx` | Business or listing status in owner-facing words ("Live", "Awaiting approval"). |
+
+### components/admin/
+
+| File | What it does |
+| --- | --- |
+| `AdminShell.tsx` | Header and navigation for the admin area. Reports & reviews and Search trends are shown as "Soon" (Sprint 2). |
 
 ### components/shared/ — used by more than one area
 
