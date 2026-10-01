@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { businessOgImage, pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
@@ -6,18 +7,14 @@ import { AppShell } from "@/components/public/AppShell";
 import { BusinessProfile } from "@/components/public/BusinessProfile";
 import { BusinessSidebar } from "@/components/public/BusinessSidebar";
 import { PaymentMethodsCard } from "@/components/payments/PaymentMethodsCard";
+import { ProfileViewBeacon } from "@/components/analytics/ProfileViewBeacon";
 import { assetUrl, getBusiness, getPaymentMethods } from "@/lib/api";
 import { resolveLocale, t, localeHref } from "@/lib/i18n";
 import { toNumber } from "@/lib/format";
 import { paymentMethodOption } from "@/lib/paymentMethods";
 import type { BusinessDetail, PaymentMethod } from "@/lib/types";
 
-/**
- * Business profile page.
- *
- * Server-rendered at a stable slug URL and annotated with `LocalBusiness`
- * structured data, so the complete record is available to crawlers.
- */
+// Business profile page.
 
 type Params = { slug: string };
 type Query = { lang?: string };
@@ -41,19 +38,15 @@ export async function generateMetadata({
 
     const cover = assetUrl(business.vendor_cover_url);
 
-    return {
+    // Uses the cover photo, or a generated name card, so the link preview is never blank.
+    return pageMetadata({
         title,
         description,
-        alternates: { canonical: `/business/${business.vendor_slug}` },
-        // Per-business OpenGraph tags for link preview cards.
-        openGraph: {
-            type: "website",
-            title,
-            description,
-            url: `/business/${business.vendor_slug}`,
-            images: cover ? [{ url: cover }] : undefined,
-        },
-    };
+        path: `/business/${business.vendor_slug}`,
+        image: cover
+            ? { url: cover, alt: business.vendor_name }
+            : businessOgImage(business.vendor_slug, business.vendor_name),
+    });
 }
 
 export default async function BusinessPage({
@@ -72,14 +65,14 @@ export default async function BusinessPage({
         getPaymentMethods(slug),
     ]);
 
-    // Unknown or unapproved records return 404. The API serves approved
-    // businesses only.
+    // Unknown or unapproved records return 404. The API serves approved businesses only.
     if (!detail) notFound();
 
     return (
         <AppShell locale={locale} current="/search">
             <LocalBusinessJsonLd detail={detail} paymentMethods={paymentMethods} />
             <ProductJsonLd detail={detail} />
+            <ProfileViewBeacon slug={detail.business.vendor_slug} />
 
             <Link
                 href={localeHref("/search", locale)}
@@ -102,13 +95,7 @@ export default async function BusinessPage({
     );
 }
 
-/**
- * `LocalBusiness` structured data.
- *
- * Only populated fields are emitted. Incomplete properties, such as an
- * `aggregateRating` with no reviews, are invalid and are reported as
- * errors by search engines rather than ignored.
- */
+// `LocalBusiness` structured data.
 function LocalBusinessJsonLd({
     detail,
     paymentMethods,
@@ -141,9 +128,14 @@ function LocalBusinessJsonLd({
     };
 
     if (business.vendor_description) json.description = business.vendor_description;
-    if (business.vendor_website) {
-        json.sameAs = [`https://${business.vendor_website.replace(/^https?:\/\//, "")}`];
-    }
+    // The business's own site and social pages identify it to search engines as the same entity.
+    const sameAs = [
+        ...(business.vendor_website
+            ? [`https://${business.vendor_website.replace(/^https?:\/\//, "")}`]
+            : []),
+        ...(detail.social ?? []).map((s) => s.url),
+    ];
+    if (sameAs.length > 0) json.sameAs = sameAs;
 
     const cover = assetUrl(business.vendor_cover_url);
     if (cover) json.image = cover;
@@ -207,9 +199,7 @@ function LocalBusinessJsonLd({
     );
 }
 
-// One Product node per listing. A range becomes an AggregateOffer, a single
-// price an Offer, and a listing with no price gets no offers at all — a zero
-// there reads as free.
+// One Product node per listing.
 function ProductJsonLd({ detail }: { detail: BusinessDetail }) {
     const { business, listings } = detail;
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";

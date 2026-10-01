@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
@@ -11,8 +12,7 @@ import { resolveLocale, t, localeHref, pick } from "@/lib/i18n";
 import { localiseDigits } from "@/lib/format";
 import type { CategoryNode } from "@/lib/types";
 
-// A stable slug URL, unlike the search page's query-string filter — search
-// results are excluded from the index to avoid near-duplicate pages.
+// A stable, indexable category URL, unlike search's query-string filter, which is kept out of the index.
 
 const PAGE_SIZE = 20;
 
@@ -30,11 +30,11 @@ export async function generateMetadata({
     if (!category) return { title: "Category not found" };
 
     const name = category.category_name;
-    return {
+    return pageMetadata({
         title: `${name} in Rajshahi — businesses and services`,
         description: `Find ${name.toLowerCase()} businesses in Rajshahi. Compare ratings, opening hours and contact details on Shahebbazar.`,
-        alternates: { canonical: `/categories/${category.category_slug}` },
-    };
+        path: `/categories/${category.category_slug}`,
+    });
 }
 
 export default async function CategoryPage({
@@ -51,12 +51,8 @@ export default async function CategoryPage({
     const categories = await getCategories();
     const category = categories.find((c) => c.category_slug === slug);
 
-    // A 404, not an empty listing — a stale link should not look like a real
-    // category that happens to have nothing in it.
-    if (!category) {
-        notFound();
-        return null;
-    }
+    // Unknown category: a 404 rather than an empty listing.
+    if (!category) notFound();
 
     const parent =
         category.category_parent_id === null
@@ -221,8 +217,7 @@ export default async function CategoryPage({
     );
 }
 
-// Built from the same parent lookup as the visible breadcrumb, so the two
-// cannot disagree.
+// Built from the same parent lookup as the visible breadcrumb, so the two cannot disagree.
 function CategoryJsonLd({
     category,
     parent,
