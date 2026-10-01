@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { AppShell } from "@/components/public/AppShell";
@@ -9,16 +10,16 @@ import { resolveLocale, t, localeHref, pick, type Locale } from "@/lib/i18n";
 import { localiseDigits, toNumber } from "@/lib/format";
 import type { CategoryNode } from "@/lib/types";
 
-// The whole taxonomy on one indexable URL, so a crawler can reach every
-// category page from here.
+// The whole taxonomy on one indexable URL, so a crawler can reach every category page from here.
 
 type Query = { lang?: string };
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: "All categories — businesses and services in Rajshahi",
     description:
         "Browse every category of business and service in Rajshahi, from silk and handicrafts to health and tourism.",
-};
+    path: "/categories",
+});
 
 // Written in full because Tailwind resolves class names by scanning source.
 const TINTS = [

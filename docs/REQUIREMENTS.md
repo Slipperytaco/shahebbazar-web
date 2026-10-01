@@ -27,9 +27,9 @@ gateway that was explicitly postponed.
 
 | Area | Phase 1 — build now | Status | Phase 2 — do not build |
 | --- | --- | --- | --- |
-| Monetization | RFQ system, product inquiry buttons, offline / cash-on-delivery terms | **Schema only** | bKash, Nagad, SSLCommerz checkout |
+| Monetization | RFQ system, product inquiry buttons, offline / cash-on-delivery terms | **Partial** — inquiry buttons and offline payment terms done; RFQ is built by another member | bKash, Nagad, SSLCommerz checkout |
 | Marketing | Dynamic OpenGraph tags, SEO preview cards, social share buttons | **Partial** | Facebook Ads Management API |
-| Lead routing | Direct business↔customer messaging, inquiry submissions, dashboard alerts | **Schema only** | Algorithmic lead matching |
+| Lead routing | Direct business↔customer messaging, inquiry submissions, dashboard alerts | **Done** | Algorithmic lead matching |
 
 RFQ detail: `quote_requests` and `quote_responses` exist, are seeded with
 three requests in different states, and `quote_payment_terms` defaults to
@@ -83,8 +83,8 @@ ready when the pages are.
 
 | Requirement | Status | Where |
 | --- | --- | --- |
-| Lightweight buyer↔seller messaging | **Schema only** | `conversations`, `messages`. |
-| SMS or email alert when the seller is offline | **Schema only** | `notifications` is an outbox — a row is written first and dispatched by a worker, so a failed SMS is retryable rather than a lost enquiry. No worker, no SMS driver. |
+| Lightweight buyer↔seller messaging | **Done** | `routes/messages.js`; customer inbox at `/account/messages`, owner inbox at `/vendors/dashboard/messages` and `/inquiries`. "Ask about this" on every product starts a product inquiry. |
+| SMS or email alert when the seller is offline | **Done, no gateway yet** | `lib/notify.js`: an in-app alert at once, plus SMS/email rows that the worker sends only if the message is still unread after `NOTIFY_DELAY_MINUTES` (default 5). Delivery is written to the server log until an SMS gateway is chosen. |
 
 ### 2E. Administrative portal
 
@@ -92,9 +92,9 @@ Owned by the teammate building admin. `app/(admin)/` marks the boundary.
 
 | Requirement | Status | Where |
 | --- | --- | --- |
-| Approve and verify new business listings | **Schema only** | `vendors.vendor_status`, `vendor_listings.listing_status`, `v_moderation_queue` (one list across vendors, listings and reports — seeded with 3 pending items). |
-| Moderate inappropriate reviews and fake profiles | **Schema only** | `reviews.review_status`, `reports` (polymorphic), `audit_logs`. |
-| Daily/weekly search trends and active user counts | **Schema only** | `v_search_trends_daily` — buckets under 5 events are suppressed, because one district plus one rare medical query is re-identifiable and the client asked for no personal data exposed. `v_active_users_daily`. |
+| Approve and verify new business listings | **Done** — `/admin` | `vendors.vendor_status`, `vendor_listings.listing_status`, `v_moderation_queue` (one list across vendors, listings and reports — seeded with 3 pending items). |
+| Moderate inappropriate reviews and fake profiles | **Done** | `/admin/reports` (dismiss or take down: suspend business, archive product, hide review, close conversation) and `/admin/reviews` (hide/restore). Users report from the business page, reviews and messages. Every decision goes to `audit_logs`. |
+| Daily/weekly search trends and active user counts | **Done** — `/admin/trends` (7/30/90 days, top searches, searches with no results) | `v_search_trends_daily` — buckets under 5 events are suppressed, because one district plus one rare medical query is re-identifiable and the client asked for no personal data exposed. `v_active_users_daily`. |
 
 ---
 
@@ -103,8 +103,8 @@ Owned by the teammate building admin. `app/(admin)/` marks the boundary.
 | # | Deliverable | Status | Notes |
 | --- | --- | --- | --- |
 | 1 | Clean codebase, modular, env setup guide, comprehensive README | **Done** | `README.md` covers setup, env vars, scripts, API, conventions and known gaps. Structured Git repo is **outstanding — this folder is not a git repository.** |
-| 2 | Documented schema, FK constraints, **ER diagram**, seed with sample Rajshahi merchants | **Partial** | Schema, constraints and seed done and verified loading; `SCHEMA-NOTES.md` maps each change to a client line. **No ER diagram** — generate from pgAdmin's ERD tool or dbdiagram.io. |
-| 3 | **API documentation** — Swagger/OpenAPI or a shared Postman collection | **Not started** | Four public endpoints exist and are tabled in the README, but that is not the deliverable he asked for. |
+| 2 | Documented schema, FK constraints, **ER diagram**, seed with sample Rajshahi merchants | **Done** | Schema, constraints and seed verified loading; `SCHEMA-NOTES.md` maps each change to a client line. ER diagram generated from the live schema in `docs/ER-DIAGRAM.md` and `docs/erd/` (`npm run docs:erd`). |
+| 3 | **API documentation** — Swagger/OpenAPI or a shared Postman collection | **Done** | `docs/openapi.yaml` (OpenAPI 3.1, 63 operations), browsable at `/api/docs`, importable into Postman. Contract-tested against the running API. |
 | 4 | Working deployed prototype demonstrating search, shop profile, quotation and admin verification | **Not started** | None of those four flows has a screen yet, and nothing is deployed. |
 
 ### Also asked for, and outstanding
@@ -125,10 +125,10 @@ visible if skipped.
 | Search results | `UIs/…18.25.26 (5).jpeg` | **Done** |
 | Business profile | `UIs/…18.25.26 (6).jpeg` | **Done** |
 | Provider registration | `UIs/…18.25.26 (7).jpeg` | Not started — old client-side form still in place, and broken |
-| Provider dashboard | `UIs/…18.25.27 (2).jpeg` | Not started — old client-side page still in place |
-| Add / edit business | `UIs/…18.25.27 (3).jpeg` | Not started |
-| Customer account | **no design** | Placeholder at `/account` |
-| Admin portal | **no design** | Placeholder at `/admin` |
+| Provider dashboard | `UIs/…18.25.27 (2).jpeg` | **Done**, plus Inquiries, Messages, Reviews (with replies), Settings and alerts |
+| Add / edit business | `UIs/…18.25.27 (3).jpeg` | **Done** (edit; creating a business needs sign-in) |
+| Customer account | **no design** | **Done** — `/account`: saved businesses, messages, my reviews, alerts |
+| Admin portal | **no design** | **Done** — approvals, reports, reviews, search trends |
 
 Two areas have no approved design: the customer account and the admin
 portal. Worth asking the client for those rather than inventing them.

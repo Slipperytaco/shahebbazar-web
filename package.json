@@ -17,6 +17,7 @@
 
     "db:load": "npm --prefix backend run db:load",
     "db:reset": "npm --prefix backend run db:reset",
+    "docs:erd": "npm --prefix backend run docs:erd",
 
     "lint": "npm --prefix frontend/shahebbazar run lint",
     "typecheck": "npm --prefix frontend/shahebbazar exec tsc -- --noEmit"
