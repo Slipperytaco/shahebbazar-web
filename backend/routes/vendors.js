@@ -36,34 +36,63 @@ router.get('/search', async (req, res) => {
 });
 
 
-// this route handles vendor registration , handling details from front end and inserts them into DB 
-router.post('/', async (req, res) => {
+// Register a vendor with stubbed NID verification
+router.post("/", async (req, res) => {
     const {
         vendor_name,
         vendor_email,
         vendor_phone,
         vendor_address,
-        vendor_city
+        vendor_city,
+        nid_number
     } = req.body;
+
+    // Basic Phase 1 validation
+    if (
+        !vendor_name?.trim() ||
+        !vendor_phone?.trim() ||
+        !nid_number?.trim()
+    ) {
+        return res.status(400).json({
+            success: false,
+            error: "Business name, phone number, and NID number are required."
+        });
+    }
 
     try {
         const result = await pool.query(
-            `INSERT INTO vendors 
-      (vendor_name, vendor_email, vendor_phone, vendor_address, vendor_city)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *`,
-            [
+            `INSERT INTO vendors (
                 vendor_name,
                 vendor_email,
                 vendor_phone,
                 vendor_address,
-                vendor_city
+                vendor_city,
+                nid_number
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *`,
+            [
+                vendor_name.trim(),
+                vendor_email?.trim() || null,
+                vendor_phone.trim(),
+                vendor_address?.trim() || null,
+                vendor_city?.trim() || null,
+                nid_number.trim()
             ]
         );
 
-        res.json({ success: true, vendor: result.rows[0] });
+        return res.status(201).json({
+            success: true,
+            message: "Vendor registered and submitted for NID verification.",
+            vendor: result.rows[0]
+        });
     } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
+        console.error("Vendor registration error:", err);
+
+        return res.status(500).json({
+            success: false,
+            error: "Unable to register vendor."
+        });
     }
 });
 

@@ -9,7 +9,8 @@ export default function VendorRegister() {
         vendor_password: "",
         vendor_phone: "",
         vendor_address: "",
-        vendor_city: ""
+        vendor_city: "",
+        nid_number: ""
     });
     // status msg - success or error: 
     const [status, setStatus] = useState(null);
@@ -62,6 +63,11 @@ export default function VendorRegister() {
                         <input name="vendor_phone" placeholder="Phone" onChange={handleChange} className="form-input" />
                         <input name="vendor_address" placeholder="Address" onChange={handleChange} className="form-input" />
                         <input name="vendor_city" placeholder="City" onChange={handleChange} className="form-input" />
+                        <input name="nid_number" placeholder="National ID Number" onChange={handleChange} className="form-input" />
+                        <p className="text-sm text-gray-400">
+                            NID verification is required for vendor approval.
+                            New registrations will be marked as pending verification. 
+                        </p>
                         <button type="submit" className="form-button-primary">
                             Register Vendor
                         </button>

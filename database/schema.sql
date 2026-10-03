@@ -12,14 +12,31 @@ CREATE TABLE vendors (
     vendor_name VARCHAR(255) NOT NULL,
     vendor_phone VARCHAR(20) NOT NULL,
     vendor_address TEXT,
-	vendor_email TEXT,
+    vendor_email TEXT,
     vendor_city VARCHAR(255),
+
+    nid_number VARCHAR(50),
+
+    verification_status VARCHAR(20)
+        NOT NULL
+        DEFAULT 'pending'
+        CHECK (
+            verification_status IN (
+                'pending',
+                'verified',
+                'rejected'
+            )
+        ),
+
     vendor_created_at TIMESTAMP DEFAULT NOW(),
+
     user_id INT REFERENCES users(user_id)
 );
-
-
+-- Vendor identity verification status
+-- Phase 1: Stubbed NID verification workflow
+-- Future semesters may integrate actual verification providers
 -- vendor <---> category many to many relationship
+
 CREATE TABLE vendor_categories (
     vendor_id INT REFERENCES vendors(vendor_id) ON DELETE CASCADE,
     category_id INT REFERENCES categories(category_id) ON DELETE CASCADE,
