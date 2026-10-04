@@ -1,0 +1,35 @@
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import { apiGet, getVendorSummary } from "@/lib/api";
+import { ProviderShell, parseVendorParam, providerHref } from "@/components/provider/ProviderShell";
+import { ConversationList } from "@/components/messaging/ConversationList";
+import type { ConversationSummary } from "@/lib/types";
+
+export const metadata: Metadata = {
+    title: "Inquiries",
+};
+
+export default async function InquiriesPage({ searchParams }: { searchParams: Promise<{ vendor?: string }> }) {
+    const vendorId = parseVendorParam((await searchParams).vendor);
+    if (vendorId === null) redirect("/vendors/dashboard");
+    const [vendor, conversations] = await Promise.all([
+        getVendorSummary(vendorId),
+        apiGet<ConversationSummary[]>(`/vendors/${vendorId}/conversations?type=inquiries`),
+    ]);
+    if (!vendor) notFound();
+
+    return (
+        <ProviderShell vendor={vendor} current="inquiries">
+            <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">Inquiries</h1>
+            <p className="mt-1.5 mb-5 text-[0.9375rem] text-muted">
+                Questions customers sent with the “Ask about this” button on one of your products.
+            </p>
+            <ConversationList
+                conversations={conversations ?? []}
+                hrefFor={(id) => providerHref(`/vendors/dashboard/messages/${id}`, vendorId)}
+                show="customer"
+                empty="No product inquiries yet."
+            />
+        </ProviderShell>
+    );
+}

@@ -1,0 +1,59 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { getVendorPaymentMethods } from "@/lib/api";
+import { ProviderShell, parseVendorParam } from "@/components/provider/ProviderShell";
+import { PaymentMethodsForm } from "./PaymentMethodsForm";
+
+export const metadata: Metadata = {
+    title: "Payment methods",
+};
+
+type Query = { vendor?: string };
+
+export default async function PaymentMethodsPage({
+    searchParams,
+}: {
+    searchParams: Promise<Query>;
+}) {
+    // TODO(auth): take the vendor from the signed-in user, not the query string.
+    const vendorId = parseVendorParam((await searchParams).vendor);
+    if (vendorId === null) redirect("/vendors/dashboard");
+
+    const data = await getVendorPaymentMethods(vendorId);
+    if (!data) notFound();
+
+    const { vendor: business, methods } = data;
+    const isApproved = business.vendor_status === "approved";
+
+    return (
+        <ProviderShell vendor={business} current="payments">
+            <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">Payment Methods</h1>
+            <p className="mt-1.5 max-w-2xl text-[0.9375rem] leading-relaxed text-muted">
+                Customers see these on your business profile, so they know how they can pay
+                before they visit or order. Payment is made to you directly; Shahebbazar does not
+                take or handle payments.
+            </p>
+
+            <div className="mt-6 max-w-md rounded-xl border border-line bg-surface p-5 shadow-card">
+                {!isApproved && (
+                    <p className="mb-5 rounded-lg bg-sponsor-bg p-3 text-sm text-sponsor-ink">
+                        Your business is awaiting approval. Methods you save now appear on your
+                        profile once it is approved.
+                    </p>
+                )}
+
+                <PaymentMethodsForm vendorId={business.vendor_id} initialMethods={methods} />
+
+                {isApproved && (
+                    <Link
+                        href={`/business/${business.vendor_slug}`}
+                        className="form-button-secondary mt-3"
+                    >
+                        View public profile
+                    </Link>
+                )}
+            </div>
+        </ProviderShell>
+    );
+}

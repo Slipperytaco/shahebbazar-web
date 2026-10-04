@@ -1,0 +1,1933 @@
+openapi: 3.1.0
+info:
+  title: Shahebbazar API
+  version: 1.1.0-sprint2
+  summary: Rajshahi local business directory — Express API.
+  description: |
+    The Express API behind shahebbazar.com. The Next.js frontend calls it
+    from the server when rendering pages; the provider dashboard, the
+    analytics beacons and image uploads call it from the browser.
+
+    **Browse it:** run the API and open `http://localhost:4000/api/docs`.
+    **Postman:** File → Import → this file (`docs/openapi.yaml`).
+
+    **Authentication is not built yet.** Every provider and admin
+    endpoint is marked `TODO(auth)` in the code and is currently open.
+    The customer (`/api/me/...`) endpoints act as the first active
+    customer account until sign-in exists.
+    They must not be deployed publicly until sessions and role checks
+    exist. The provider endpoints take the business id in the path for
+    now; with sign-in, it will come from the session.
+
+    **Conventions**
+    - All public responses contain approved records only.
+    - `NUMERIC` and `COUNT(*)` values that PostgreSQL returns as big
+      numbers arrive as **strings** (e.g. `"rating": "4.5"`); convert
+      before doing arithmetic.
+    - Stored image paths are relative (`uploads/…`) and are served by this
+      API at `/uploads/…`.
+    - Errors are `{ "error": "…" }`; form endpoints add `errors` keyed by
+      field.
+  contact:
+    name: COS40005 Group 23
+# No authentication exists yet, so no security scheme is declared. When
+# sessions arrive, add a cookie scheme under components.securitySchemes and
+# require it on the Provider and Admin operations.
+security: []
+servers:
+  - url: http://localhost:4000
+    description: Local development
+tags:
+  - name: Health
+    description: Is the API up, and is the database loaded?
+  - name: Public
+    description: Read-only browsing data. Approved records only.
+  - name: Analytics
+    description: Beacons the browser sends once a page is on screen.
+  - name: Registration
+    description: Vendor sign-up. Part of the sign-in work.
+  - name: Provider
+    description: A business owner's own data. `TODO(auth)`.
+  - name: Listings
+    description: A business's products and services. `TODO(auth)`.
+  - name: Admin
+    description: Approvals, reports, review moderation and search trends. `TODO(auth)`.
+  - name: Customer
+    description: The customer's saved businesses, reviews, reports and alerts. `TODO(auth)`.
+  - name: Messaging
+    description: Buyer-seller conversations and alerts, for both sides. `TODO(auth)`.
+  - name: Reviews
+    description: Writing reviews and owner replies.
+  - name: Events
+    description: Public events around Rajshahi.
+
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Liveness, database connectivity and schema completeness
+      responses:
+        "200":
+          description: Usable.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, db, schema, time]
+                properties:
+                  ok: { const: true }
+                  db: { const: true }
+                  schema: { type: object, properties: { ok: { const: true } } }
+                  time: { type: string, format: date-time }
+        "503":
+          description: Database unreachable or schema incomplete. `hint` says what to run.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { const: false }
+                  db: { type: boolean }
+                  error: { type: string }
+                  hint: { type: string }
+                  schema:
+                    type: object
+                    properties:
+                      missing:
+                        type: array
+                        items: { type: object, properties: { name: { type: string }, file: { type: string } } }
+
+  # -------------------------------------------------------------- public
+  /api/home:
+    get:
+      operationId: getHome
+      tags: [Public]
+      summary: Home page content
+      responses:
+        "200":
+          description: Category tiles, featured businesses, upcoming events and popular searches.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories, featured, events, popularSearches]
+                properties:
+                  categories: { type: array, items: { $ref: "#/components/schemas/CategoryTile" } }
+                  featured: { type: array, items: { $ref: "#/components/schemas/BusinessCard" } }
+                  events: { type: array, items: { $ref: "#/components/schemas/Event" } }
+                  popularSearches:
+                    type: array
+                    items: { type: string }
+                    description: Normalised terms searched at least 5 times; rarer terms are suppressed for privacy.
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/categories:
+    get:
+      operationId: getCategories
+      tags: [Public]
+      summary: The full category tree, flat
+      responses:
+        "200":
+          description: Active categories; `category_parent_id` is null for top-level ones.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CategoryNode" } }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/businesses:
+    get:
+      operationId: getBusinesses
+      tags: [Public]
+      summary: Search and browse businesses
+      description: Sponsored (featured) businesses are returned separately and must be shown with a label.
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: "Matches business names, descriptions and approved listing titles (English or Bangla)." }
+        - { name: category, in: query, schema: { type: string }, description: "Category slug; a parent slug also matches its sub-categories." }
+        - { name: area, in: query, schema: { type: string }, description: "Area (location) slug." }
+        - { name: sort, in: query, schema: { type: string, enum: [relevance, rating, reviews, name], default: relevance } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200":
+          description: One page of results with sidebar facet counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results, sponsored, total, limit, offset, sort, facets]
+                properties:
+                  results: { type: array, items: { $ref: "#/components/schemas/BusinessCard" } }
+                  sponsored:
+                    type: array
+                    maxItems: 2
+                    description: First page only.
+                    items: { $ref: "#/components/schemas/BusinessCard" }
+                  total: { type: integer, description: "All matches, sponsored included." }
+                  limit: { type: integer }
+                  offset: { type: integer }
+                  sort: { type: string, enum: [relevance, rating, reviews, name] }
+                  facets:
+                    type: object
+                    required: [areas, categories]
+                    properties:
+                      areas: { type: array, items: { $ref: "#/components/schemas/Facet" } }
+                      categories: { type: array, items: { $ref: "#/components/schemas/Facet" } }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/businesses/{slug}:
+    get:
+      operationId: getBusinessesBySlug
+      tags: [Public]
+      summary: One business profile
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: The profile with everything the page shows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BusinessDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/businesses/{slug}/payment-methods:
+    get:
+      operationId: getBusinessesBySlugPaymentMethods
+      tags: [Public]
+      summary: Payment methods a business accepts (display only)
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: May be empty.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PaymentMethod" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/sitemap:
+    get:
+      operationId: getSitemap
+      tags: [Public]
+      summary: What /sitemap.xml lists
+      responses:
+        "200":
+          description: Approved businesses, and categories with at least one approved business.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [businesses, categories]
+                properties:
+                  businesses:
+                    type: array
+                    items:
+                      type: object
+                      required: [slug, updated_at]
+                      properties:
+                        slug: { type: string }
+                        updated_at: { type: string, format: date-time }
+                  categories:
+                    type: array
+                    items: { type: object, required: [slug], properties: { slug: { type: string } } }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  # ----------------------------------------------------------- analytics
+  /api/track/search:
+    post:
+      operationId: postTrackSearch
+      tags: [Analytics]
+      summary: Record a typed search and the businesses shown for it
+      description: |
+        Sent by the search page for the first page of a typed query. Also
+        counts one search appearance per business shown. Crawlers (by user
+        agent) and repeats from the same visitor within 30 minutes are
+        ignored. No IP address is stored, only a hash that changes daily.
+
+        Sent as `text/plain` so the cross-origin request needs no CORS
+        preflight; `application/json` is also accepted.
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema: { type: string, description: "The JSON object below, as text." }
+          application/json:
+            schema:
+              type: object
+              required: [q]
+              properties:
+                q: { type: string, maxLength: 200 }
+                category: { type: string, description: "Category slug, if filtered." }
+                area: { type: string, description: "Area slug, if filtered." }
+                resultCount: { type: integer, minimum: 0 }
+                vendorIds: { type: array, maxItems: 25, items: { type: integer } }
+      responses:
+        "204": { description: "Accepted, or ignored as a crawler or repeat." }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/track/view:
+    post:
+      operationId: postTrackView
+      tags: [Analytics]
+      summary: Record one view of a business profile
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema: { type: string }
+          application/json:
+            schema:
+              type: object
+              required: [slug]
+              properties:
+                slug: { type: string }
+                source: { type: string, enum: [search, category, direct, share, sponsored], default: direct }
+      responses:
+        "204": { description: "Accepted, including for an unknown or unapproved slug (so their existence is not revealed)." }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  # -------------------------------------------------------- registration
+  /api/vendors:
+    get:
+      operationId: getVendors
+      tags: [Registration]
+      summary: Every vendor, every column (development only)
+      deprecated: true
+      description: |
+        Used by the development business picker on `/vendors/dashboard`
+        until sign-in exists. Returns unapproved businesses and moderation
+        fields: **remove before deployment**.
+      responses:
+        "200":
+          description: Raw `vendors` rows.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [vendor_id, vendor_name, vendor_status]
+                  properties:
+                    vendor_id: { type: integer }
+                    vendor_name: { type: string }
+                    vendor_status: { $ref: "#/components/schemas/VendorStatus" }
+    post:
+      operationId: postVendors
+      tags: [Registration]
+      summary: Register a business and its owner account
+      description: Creates a `vendor` user (phone is the identifier) and a pending business in one transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vendor_name, vendor_phone]
+              properties:
+                vendor_name: { type: string }
+                vendor_phone: { type: string }
+                vendor_email: { type: string, format: email }
+                vendor_address: { type: string }
+                vendor_city: { type: string, description: "Area or city name, matched to a location." }
+      responses:
+        "201":
+          description: Created, awaiting approval.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { const: true }
+                  vendor:
+                    type: object
+                    properties:
+                      vendor_id: { type: integer }
+                      vendor_slug: { type: string }
+                      vendor_status: { const: pending }
+        "400": { $ref: "#/components/responses/LegacyError" }
+        "409": { $ref: "#/components/responses/LegacyError" }
+
+  # ------------------------------------------------------------ provider
+  /api/vendors/{vendorId}/dashboard:
+    get:
+      operationId: getVendorsByVendorIdDashboard
+      tags: [Provider]
+      summary: Everything the provider dashboard shows
+      description: Works for a business in any status. Periods are whole days in Asia/Dhaka; the current period includes today.
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+        - { name: days, in: query, schema: { type: integer, enum: [7, 30, 90], default: 30 }, description: "Other values fall back to 30." }
+      responses:
+        "200":
+          description: Stat cards, chart series and listing preview.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorDashboard" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/vendors/{vendorId}/summary:
+    get:
+      operationId: getVendorsByVendorIdSummary
+      tags: [Provider]
+      summary: Name, slug and status of one business
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorSummary" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/vendors/{vendorId}/profile:
+    get:
+      operationId: getVendorsByVendorIdProfile
+      tags: [Provider]
+      summary: What the Edit Business form edits, with its option lists
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/VendorProfile"
+                  - type: object
+                    required: [options, limits]
+                    properties:
+                      options:
+                        type: object
+                        required: [categories, areas]
+                        properties:
+                          categories:
+                            type: array
+                            description: Grouped by top level; top-level categories appear as "<name> (general)".
+                            items:
+                              type: object
+                              required: [id, name, parent]
+                              properties: { id: { type: integer }, name: { type: string }, parent: { type: string } }
+                          areas:
+                            type: array
+                            items:
+                              type: object
+                              required: [id, name, city]
+                              properties: { id: { type: integer }, name: { type: string }, city: { type: string } }
+                      limits: { type: object, additionalProperties: { type: integer } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      operationId: putVendorsByVendorIdProfile
+      tags: [Provider]
+      summary: Save the whole Edit Business form
+      description: |
+        One transaction. Categories, hours, facts and social links are
+        replaced as a set; the slug never changes. `submit: true` sends a
+        draft or rejected business for approval; an approved or pending
+        business keeps its status. A suspended business cannot be edited.
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorProfileInput" }
+      responses:
+        "200":
+          description: Saved; the stored profile, normalised (e.g. phone as +880…).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorProfile" }
+        "400":
+          description: Validation failed. Nothing was saved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FieldErrors" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: The business is suspended., content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /api/vendors/{vendorId}/logo:
+    post:
+      operationId: postVendorsByVendorIdLogo
+      tags: [Provider]
+      summary: Upload or replace the logo
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [logo]
+              properties:
+                logo: { type: string, format: binary, description: "JPG, PNG or WEBP, up to 2 MB. Checked by file signature, not just the declared type." }
+      responses:
+        "201":
+          description: Saved.
+          content:
+            application/json:
+              schema: { type: object, required: [logo_url], properties: { logo_url: { type: string } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: deleteVendorsByVendorIdLogo
+      tags: [Provider]
+      summary: Remove the logo
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "204": { description: "Removed." }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/vendors/{vendorId}/photos:
+    post:
+      operationId: postVendorsByVendorIdPhotos
+      tags: [Provider]
+      summary: Add business photos
+      description: Up to 6 photos in total. The first photo is the cover (`vendor_cover_url`).
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photos]
+              properties:
+                photos:
+                  type: array
+                  maxItems: 6
+                  items: { type: string, format: binary, description: "JPG, PNG or WEBP, up to 5 MB each." }
+      responses:
+        "201":
+          description: All the business's photos, in order.
+          content:
+            application/json:
+              schema: { type: object, required: [photos], properties: { photos: { type: array, items: { $ref: "#/components/schemas/VendorPhoto" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/vendors/{vendorId}/photos/{photoId}:
+    delete:
+      operationId: deleteVendorsByVendorIdPhotosByPhotoId
+      tags: [Provider]
+      summary: Remove a photo
+      description: If it was the cover, the next photo becomes the cover.
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+        - { name: photoId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "204": { description: "Removed." }
+        "404": { description: No such photo on this business., content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /api/vendors/{vendorId}/payment-methods:
+    get:
+      operationId: getVendorsByVendorIdPaymentMethods
+      tags: [Provider]
+      summary: The business's payment methods, for editing
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [vendor, methods]
+                properties:
+                  vendor: { $ref: "#/components/schemas/VendorSummary" }
+                  methods: { type: array, items: { $ref: "#/components/schemas/PaymentMethod" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      operationId: putVendorsByVendorIdPaymentMethods
+      tags: [Provider]
+      summary: Replace the whole set of payment methods
+      description: Notes may not contain an 8+ digit run, so account or wallet numbers cannot be published.
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [methods]
+              properties:
+                methods: { type: array, items: { $ref: "#/components/schemas/PaymentMethod" } }
+      responses:
+        "200":
+          description: The saved set.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PaymentMethod" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ------------------------------------------------------------ listings
+  /api/vendors/{vendorId}/listings:
+    get:
+      operationId: getVendorsByVendorIdListings
+      tags: [Listings]
+      summary: All of a business's listings, any status
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Listing" } }
+    post:
+      operationId: postVendorsByVendorIdListings
+      tags: [Listings]
+      summary: Create a listing (awaits admin approval)
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ListingInput" }
+      responses:
+        "201":
+          description: Created as pending.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListingSaved" }
+        "400": { $ref: "#/components/responses/LegacyError" }
+
+  /api/listings/{listingId}:
+    put:
+      operationId: putListingsByListingId
+      tags: [Listings]
+      summary: Update a listing
+      parameters:
+        - $ref: "#/components/parameters/ListingId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ListingInput" }
+      responses:
+        "200":
+          description: Saved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListingSaved" }
+        "400": { $ref: "#/components/responses/LegacyError" }
+        "404": { $ref: "#/components/responses/LegacyError" }
+    delete:
+      operationId: deleteListingsByListingId
+      tags: [Listings]
+      summary: Delete a listing and its photos
+      parameters:
+        - $ref: "#/components/parameters/ListingId"
+      responses:
+        "200":
+          description: Deleted.
+          content:
+            application/json:
+              schema: { type: object, properties: { success: { const: true }, message: { type: string } } }
+        "404": { $ref: "#/components/responses/LegacyError" }
+
+  /api/listings/{listingId}/photos:
+    post:
+      operationId: postListingsByListingIdPhotos
+      tags: [Listings]
+      summary: Upload photos for a listing
+      parameters:
+        - $ref: "#/components/parameters/ListingId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photos: { type: array, items: { type: string, format: binary, description: "JPG or PNG." } }
+      responses:
+        "200":
+          description: Uploaded.
+          content:
+            application/json:
+              schema: { type: object, properties: { success: { const: true }, message: { type: string } } }
+        "400": { $ref: "#/components/responses/LegacyError" }
+
+  # --------------------------------------------------------------- admin
+  /api/admin/queue:
+    get:
+      operationId: getAdminQueue
+      tags: [Admin]
+      summary: Pending businesses and listings, and recent decisions
+      responses:
+        "200":
+          description: Oldest pending first; last 20 decisions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [vendors, listings, recent]
+                properties:
+                  vendors: { type: array, items: { $ref: "#/components/schemas/PendingBusiness" } }
+                  listings: { type: array, items: { $ref: "#/components/schemas/PendingListing" } }
+                  recent: { type: array, items: { $ref: "#/components/schemas/AdminDecisionLog" } }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/admin/vendors/{id}/decision:
+    post:
+      operationId: postAdminVendorsByIdDecision
+      tags: [Admin]
+      summary: Approve (and verify) or reject a pending business
+      description: Only a pending business can be decided; a second decision gets 409. Written to `audit_logs`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody: { $ref: "#/components/requestBodies/Decision" }
+      responses:
+        "200": { $ref: "#/components/responses/Decided" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/AlreadyDecided" }
+
+  /api/admin/listings/{id}/decision:
+    post:
+      operationId: postAdminListingsByIdDecision
+      tags: [Admin]
+      summary: Approve or reject a pending listing
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody: { $ref: "#/components/requestBodies/Decision" }
+      responses:
+        "200": { $ref: "#/components/responses/Decided" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/AlreadyDecided" }
+
+  # ------------------------------------------------------------ customer
+  /api/me:
+    get:
+      operationId: getMe
+      tags: [Customer]
+      summary: The customer's account and counts
+      responses:
+        "200":
+          description: Account.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: integer }
+                  user_name: { type: string }
+                  user_phone: { type: string }
+                  user_email: { $ref: "#/components/schemas/NullableString" }
+                  saved_count: { type: integer }
+                  review_count: { type: integer }
+                  unread_messages: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/me/saved:
+    get:
+      operationId: getMySaved
+      tags: [Customer]
+      summary: Saved businesses, newest first
+      responses:
+        "200":
+          description: Business cards with `saved_at`.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/BusinessCard" } }
+
+  /api/me/saved-ids:
+    get:
+      operationId: getMySavedIds
+      tags: [Customer]
+      summary: Ids of saved businesses, for bookmark buttons
+      responses:
+        "200":
+          description: Vendor ids.
+          content: { application/json: { schema: { type: array, items: { type: integer } } } }
+
+  /api/me/saved/{vendorId}:
+    parameters:
+      - $ref: "#/components/parameters/VendorId"
+    put:
+      operationId: putMySaved
+      tags: [Customer]
+      summary: Save an approved business (idempotent)
+      responses:
+        "200": { $ref: "#/components/responses/Saved" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: deleteMySaved
+      tags: [Customer]
+      summary: Remove a saved business
+      responses:
+        "200": { $ref: "#/components/responses/Saved" }
+
+  /api/me/reviews:
+    get:
+      operationId: getMyReviews
+      tags: [Customer]
+      summary: Reviews the customer wrote, with status and owner reply
+      responses:
+        "200":
+          description: Reviews.
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/OwnerReview" } } } }
+
+  /api/me/businesses/{slug}:
+    get:
+      operationId: getMyBusinessState
+      tags: [Customer]
+      summary: Whether the customer saved this business, and their review of it
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Viewer state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vendor_id: { type: integer }
+                  saved: { type: boolean }
+                  review:
+                    type: [object, "null"]
+                    properties:
+                      rating: { type: integer }
+                      body: { $ref: "#/components/schemas/NullableString" }
+                      status: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/me/alerts:
+    get:
+      operationId: getMyAlerts
+      tags: [Customer]
+      summary: In-app alerts and unread count
+      responses:
+        "200": { $ref: "#/components/responses/AlertList" }
+
+  /api/me/alerts/read:
+    post:
+      operationId: postMyAlertsRead
+      tags: [Customer]
+      summary: Mark all alerts read
+      responses:
+        "200": { description: Done. }
+
+  /api/reports:
+    post:
+      operationId: postReport
+      tags: [Customer]
+      summary: Report a business, product, review or message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_type, target_id, reason]
+              properties:
+                target_type: { type: string, enum: [vendor, listing, review, message] }
+                target_id: { type: integer }
+                reason: { type: string, enum: [spam, fake, fake_review, inappropriate, wrong_info, scam, other] }
+                details: { type: string, maxLength: 1000 }
+      responses:
+        "201": { description: Reported. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: This customer already has an open report on it. }
+
+  # ----------------------------------------------------------- messaging
+  /api/me/conversations:
+    get:
+      operationId: getMyConversations
+      tags: [Messaging]
+      summary: The customer's conversations, most recent first
+      responses:
+        "200":
+          description: Conversations.
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ConversationSummary" } } } }
+    post:
+      operationId: postMyConversation
+      tags: [Messaging]
+      summary: Message a business, optionally about one product
+      description: |
+        Reuses the existing conversation for the same business and product.
+        The owner gets an in-app alert; SMS (and email, if the owner has one)
+        is queued and sent only if the message is still unread after
+        `NOTIFY_DELAY_MINUTES` (default 5).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vendor_id, body]
+              properties:
+                vendor_id: { type: integer }
+                listing_id: { type: [integer, "null"] }
+                body: { type: string, maxLength: 2000 }
+      responses:
+        "201":
+          description: Sent.
+          content: { application/json: { schema: { type: object, properties: { conversation_id: { type: integer } } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Closed" }
+
+  /api/me/conversations/{id}:
+    get:
+      operationId: getMyConversation
+      tags: [Messaging]
+      summary: One conversation with its messages; marks the business's messages read
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200": { $ref: "#/components/responses/Thread" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/me/conversations/{id}/messages:
+    post:
+      operationId: postMyMessage
+      tags: [Messaging]
+      summary: Reply in a conversation
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody: { $ref: "#/components/requestBodies/MessageBody" }
+      responses:
+        "201": { description: Sent. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Closed" }
+
+  /api/vendors/{vendorId}/conversations:
+    get:
+      operationId: getVendorConversations
+      tags: [Messaging]
+      summary: A business's inbox; `type=inquiries` limits it to product questions
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+        - { name: type, in: query, schema: { type: string, enum: [inquiries] } }
+      responses:
+        "200":
+          description: Conversations.
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ConversationSummary" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/vendors/{vendorId}/conversations/{id}:
+    get:
+      operationId: getVendorConversation
+      tags: [Messaging]
+      summary: One conversation; marks the customer's messages read
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200": { $ref: "#/components/responses/Thread" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/vendors/{vendorId}/conversations/{id}/messages:
+    post:
+      operationId: postVendorMessage
+      tags: [Messaging]
+      summary: The owner replies
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody: { $ref: "#/components/requestBodies/MessageBody" }
+      responses:
+        "201": { description: Sent. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Closed" }
+
+  /api/vendors/{vendorId}/alerts:
+    get:
+      operationId: getVendorAlerts
+      tags: [Messaging]
+      summary: The owner's in-app alerts and unread count
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "200": { $ref: "#/components/responses/AlertList" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/vendors/{vendorId}/alerts/read:
+    post:
+      operationId: postVendorAlertsRead
+      tags: [Messaging]
+      summary: Mark all the owner's alerts read
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "200": { description: Done. }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ------------------------------------------------------------- reviews
+  /api/businesses/{slug}/reviews:
+    post:
+      operationId: postReview
+      tags: [Reviews]
+      summary: Write or update the customer's review (one per business)
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                body: { type: string, maxLength: 2000 }
+      responses:
+        "200": { description: Updated. }
+        "201": { description: Created. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { description: The customer owns this business. }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: The review was hidden or removed by a moderator. }
+
+  /api/vendors/{vendorId}/reviews:
+    get:
+      operationId: getVendorReviews
+      tags: [Reviews]
+      summary: A business's reviews for the owner, unanswered first
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "200":
+          description: Reviews.
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/OwnerReview" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/vendors/{vendorId}/reviews/{reviewId}/reply:
+    put:
+      operationId: putReviewReply
+      tags: [Reviews]
+      summary: Set the owner's public reply; an empty reply removes it
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+        - { name: reviewId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { reply: { type: string, maxLength: 1000 } } } } }
+      responses:
+        "200": { description: Saved. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/vendors/{vendorId}/owner:
+    parameters:
+      - $ref: "#/components/parameters/VendorId"
+    get:
+      operationId: getVendorOwner
+      tags: [Provider]
+      summary: The owner's name, phone and email
+      responses:
+        "200": { $ref: "#/components/responses/Owner" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      operationId: putVendorOwner
+      tags: [Provider]
+      summary: Update the owner's name and email (the phone is the sign-in and cannot change here)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_name]
+              properties:
+                user_name: { type: string, minLength: 2, maxLength: 100 }
+                user_email: { type: string, description: Empty removes it. }
+      responses:
+        "200": { $ref: "#/components/responses/Owner" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: The email is used by another account. }
+
+  # ------------------------------------------------------ admin moderation
+  /api/admin/reports:
+    get:
+      operationId: getAdminReports
+      tags: [Admin]
+      summary: Open reports, and those resolved in the last 30 days
+      responses:
+        "200":
+          description: Reports, open first.
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdminReport" } } } }
+
+  /api/admin/reports/{id}/resolve:
+    post:
+      operationId: postAdminReportResolve
+      tags: [Admin]
+      summary: Dismiss a report, or take the item down
+      description: |
+        Taking down suspends a business, archives a listing, hides a review
+        or closes a message's conversation. Only an open report can be
+        resolved; a second decision gets 409. Written to `audit_logs`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [action], properties: { action: { type: string, enum: [dismiss, take_down] } } }
+      responses:
+        "200": { description: Resolved. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Already resolved. }
+
+  /api/admin/reviews:
+    get:
+      operationId: getAdminReviews
+      tags: [Admin]
+      summary: Latest 50 published or hidden reviews, reported ones first
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [published, hidden], default: published } }
+      responses:
+        "200": { description: Reviews. }
+
+  /api/admin/reviews/{id}/status:
+    post:
+      operationId: postAdminReviewStatus
+      tags: [Admin]
+      summary: Hide or restore a review; written to `audit_logs`
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [status], properties: { status: { type: string, enum: [published, hidden] } } }
+      responses:
+        "200": { description: Updated. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/admin/trends:
+    get:
+      operationId: getAdminTrends
+      tags: [Admin]
+      summary: Daily active users, top searches and searches with no results
+      description: Built on `v_search_trends_daily`, which drops any query searched fewer than 5 times a day.
+      parameters:
+        - { name: days, in: query, schema: { type: integer, enum: [7, 30, 90], default: 30 } }
+      responses:
+        "200":
+          description: Trends.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  days: { type: integer }
+                  totals:
+                    type: object
+                    properties:
+                      searches: { type: integer }
+                      profile_views: { type: integer }
+                      new_businesses: { type: integer }
+                      new_reviews: { type: integer }
+                  daily:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        day: { type: string, format: date }
+                        active_users: { type: integer }
+                        searches: { type: integer }
+                  top:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        query: { type: string }
+                        searches: { type: integer }
+                        avg_results: { $ref: "#/components/schemas/NumericString" }
+                  noResults:
+                    type: array
+                    items: { type: object, properties: { query: { type: string }, searches: { type: integer } } }
+
+  /api/admin/categories:
+    get:
+      operationId: getAdminCategories
+      tags: [Admin]
+      summary: Every category, including hidden ones, with business counts
+      responses:
+        "200":
+          description: Categories ordered by sort order.
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdminCategory" } } } }
+    post:
+      operationId: postAdminCategory
+      tags: [Admin]
+      summary: Add a main category, or a subcategory with `parent_id`
+      description: The slug is made from the English name and never changes. Only two levels are allowed. Written to `audit_logs`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/CategoryFields"
+                - type: object
+                  properties:
+                    parent_id: { type: [integer, "null"] }
+      responses:
+        "201":
+          description: Created.
+          content: { application/json: { schema: { $ref: "#/components/schemas/AdminCategory" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: A category with that name already exists under the same parent. }
+
+  /api/admin/categories/{id}:
+    put:
+      operationId: putAdminCategory
+      tags: [Admin]
+      summary: Rename, reorder, change the icon, or hide/show a category
+      description: Hiding a main category also hides its subcategories on the public site. Written to `audit_logs`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/CategoryFields"
+                - type: object
+                  required: [is_active]
+                  properties:
+                    is_active: { type: boolean }
+      responses:
+        "200":
+          description: Saved.
+          content: { application/json: { schema: { $ref: "#/components/schemas/AdminCategory" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: A category with that name already exists under the same parent. }
+
+  # -------------------------------------------------------------- events
+  /api/events:
+    get:
+      operationId: getEvents
+      tags: [Events]
+      summary: Upcoming events, and the 10 most recent past ones
+      responses:
+        "200":
+          description: Events.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upcoming: { type: array, items: { $ref: "#/components/schemas/EventDetail" } }
+                  past: { type: array, items: { $ref: "#/components/schemas/EventDetail" } }
+
+  /api/events/{slug}:
+    get:
+      operationId: getEvent
+      tags: [Events]
+      summary: One published event
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Event.
+          content: { application/json: { schema: { $ref: "#/components/schemas/EventDetail" } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema: { type: string }
+      example: padma-view-restaurant
+    VendorId:
+      name: vendorId
+      in: path
+      required: true
+      description: TODO(auth) — will come from the session.
+      schema: { type: integer, minimum: 1 }
+      example: 13
+    ListingId:
+      name: listingId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+
+  requestBodies:
+    MessageBody:
+      required: true
+      content:
+        application/json:
+          schema: { type: object, required: [body], properties: { body: { type: string, maxLength: 2000 } } }
+    Decision:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [decision]
+            properties:
+              decision: { type: string, enum: [approve, reject] }
+              reason:
+                type: string
+                minLength: 10
+                maxLength: 500
+                description: Required to reject; the owner sees it. Ignored when approving.
+
+  responses:
+    Saved:
+      description: Saved state.
+      content: { application/json: { schema: { type: object, properties: { saved: { type: boolean } } } } }
+    Closed:
+      description: The conversation was closed by a moderator.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    AlertList:
+      description: Alerts, newest first.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              unread: { type: integer }
+              alerts:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    type: { type: string, example: message.new }
+                    payload:
+                      type: object
+                      properties:
+                        conversation_id: { type: integer }
+                        from: { type: string }
+                        preview: { type: string }
+                    read_at: { type: [string, "null"], format: date-time }
+                    created_at: { type: string, format: date-time }
+    Thread:
+      description: Conversation and its messages, oldest first.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              conversation: { type: object }
+              messages:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    message_id: { type: integer }
+                    body: { type: string }
+                    created_at: { type: string, format: date-time }
+                    read_at: { type: [string, "null"], format: date-time }
+                    mine: { type: boolean }
+    Owner:
+      description: Owner details.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              user_id: { type: integer }
+              user_name: { type: string }
+              user_phone: { type: string }
+              user_email: { $ref: "#/components/schemas/NullableString" }
+    BadRequest:
+      description: Invalid input.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Not found (for public endpoints, also when not approved).
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    ServerError:
+      description: Server error. Outside production, `detail` carries the database message.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    LegacyError:
+      description: Error in the listing/registration routes' format.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, error]
+            properties: { success: { const: false }, error: { type: string } }
+    Decided:
+      description: Decided.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [id, status, reason, label]
+            properties:
+              id: { type: integer }
+              status: { type: string, enum: [approved, rejected] }
+              reason: { type: [string, "null"] }
+              label: { type: string, description: "The business name or listing title." }
+    AlreadyDecided:
+      description: No longer pending — someone already decided it.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/Error"
+              - type: object
+                properties: { status: { type: string } }
+
+  schemas:
+    CategoryFields:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        name_bn: { type: string, maxLength: 100 }
+        icon: { type: string, description: "A key from components/shared/icons.ts, e.g. shirt, cap." }
+        sort_order: { type: integer, minimum: 0, maximum: 9999 }
+    AdminCategory:
+      type: object
+      properties:
+        id: { type: integer }
+        parent_id: { type: [integer, "null"] }
+        name: { type: string }
+        name_bn: { $ref: "#/components/schemas/NullableString" }
+        slug: { type: string }
+        icon: { $ref: "#/components/schemas/NullableString" }
+        sort_order: { type: integer }
+        is_active: { type: boolean }
+        business_count: { type: integer }
+    ConversationSummary:
+      type: object
+      properties:
+        conversation_id: { type: integer }
+        status: { type: string, enum: [open, closed, blocked] }
+        last_message_at: { type: [string, "null"], format: date-time }
+        vendor_id: { type: integer }
+        vendor_name: { type: string }
+        vendor_slug: { type: string }
+        customer_name: { type: string }
+        listing_id: { type: [integer, "null"] }
+        listing_title: { $ref: "#/components/schemas/NullableString" }
+        last_message: { $ref: "#/components/schemas/NullableString" }
+        unread: { type: integer }
+    OwnerReview:
+      type: object
+      properties:
+        review_id: { type: integer }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        body: { $ref: "#/components/schemas/NullableString" }
+        status: { type: string, enum: [published, pending, hidden, removed] }
+        created_at: { type: string, format: date-time }
+        reply: { $ref: "#/components/schemas/NullableString" }
+        replied_at: { type: [string, "null"], format: date-time }
+        author: { type: string }
+    AdminReport:
+      type: object
+      properties:
+        report_id: { type: integer }
+        target_type: { type: string, enum: [vendor, listing, review, message] }
+        target_id: { type: integer }
+        reason: { type: string }
+        details: { $ref: "#/components/schemas/NullableString" }
+        status: { type: string, enum: [open, actioned, dismissed] }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: [string, "null"], format: date-time }
+        reporter_name: { $ref: "#/components/schemas/NullableString" }
+        resolver_name: { $ref: "#/components/schemas/NullableString" }
+        target_label: { $ref: "#/components/schemas/NullableString" }
+        business_slug: { $ref: "#/components/schemas/NullableString" }
+    EventDetail:
+      type: object
+      properties:
+        event_id: { type: integer }
+        event_title: { type: string }
+        event_title_bn: { $ref: "#/components/schemas/NullableString" }
+        event_slug: { type: string }
+        event_description: { $ref: "#/components/schemas/NullableString" }
+        event_venue: { $ref: "#/components/schemas/NullableString" }
+        event_starts_at: { type: string, format: date-time }
+        event_ends_at: { type: [string, "null"], format: date-time }
+        event_image_url: { $ref: "#/components/schemas/NullableString" }
+        area_name: { $ref: "#/components/schemas/NullableString" }
+        vendor_name: { $ref: "#/components/schemas/NullableString" }
+        vendor_slug: { $ref: "#/components/schemas/NullableString" }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        detail: { type: string }
+        hint: { type: string }
+    FieldErrors:
+      type: object
+      required: [error, errors]
+      properties:
+        error: { type: string }
+        errors:
+          type: object
+          additionalProperties: { type: string }
+          description: Keyed by field, e.g. `phone`, `category_ids`, `hours.3`, `facts.1.label`, `social.facebook`.
+          example: { phone: "Enter a Bangladeshi number, e.g. 01712-345678." }
+
+    NumericString:
+      type: string
+      pattern: '^-?\d+(\.\d+)?$'
+      description: A PostgreSQL NUMERIC or BIGINT, as a string.
+    NullableString: { type: [string, "null"] }
+    VendorStatus: { type: string, enum: [draft, pending, approved, rejected, suspended] }
+    ListingStatus: { type: string, enum: [draft, pending, approved, rejected, archived] }
+    OpenState:
+      type: [string, "null"]
+      enum: [open, closed, null]
+      description: Null means opening hours are not recorded, not that the business is closed.
+
+    CategoryTile:
+      type: object
+      required: [category_id, category_name, category_slug, business_count]
+      properties:
+        category_id: { type: integer }
+        category_name: { type: string }
+        category_name_bn: { $ref: "#/components/schemas/NullableString" }
+        category_slug: { type: string }
+        category_icon: { $ref: "#/components/schemas/NullableString" }
+        subtitle: { $ref: "#/components/schemas/NullableString" }
+        subtitle_bn: { $ref: "#/components/schemas/NullableString" }
+        business_count: { $ref: "#/components/schemas/NumericString" }
+    CategoryNode:
+      type: object
+      required: [category_id, category_parent_id, category_name, category_slug, business_count]
+      properties:
+        category_id: { type: integer }
+        category_parent_id: { type: [integer, "null"] }
+        category_name: { type: string }
+        category_name_bn: { $ref: "#/components/schemas/NullableString" }
+        category_slug: { type: string }
+        category_icon: { $ref: "#/components/schemas/NullableString" }
+        business_count: { $ref: "#/components/schemas/NumericString" }
+    Event:
+      type: object
+      required: [event_id, event_title, event_slug, event_starts_at]
+      properties:
+        event_id: { type: integer }
+        event_title: { type: string }
+        event_title_bn: { $ref: "#/components/schemas/NullableString" }
+        event_slug: { type: string }
+        event_venue: { $ref: "#/components/schemas/NullableString" }
+        event_starts_at: { type: string, format: date-time }
+        event_ends_at: { type: [string, "null"], format: date-time }
+    Facet:
+      type: object
+      required: [name, slug, count]
+      properties:
+        name: { type: string }
+        name_bn: { $ref: "#/components/schemas/NullableString" }
+        slug: { type: string }
+        count: { type: integer }
+    BusinessCard:
+      type: object
+      required: [vendor_id, vendor_slug, vendor_name, vendor_is_featured, is_verified, rating, review_count, open_state]
+      properties:
+        vendor_id: { type: integer }
+        vendor_slug: { type: string }
+        vendor_name: { type: string }
+        vendor_name_bn: { $ref: "#/components/schemas/NullableString" }
+        vendor_description: { $ref: "#/components/schemas/NullableString" }
+        vendor_address: { $ref: "#/components/schemas/NullableString" }
+        vendor_cover_url: { $ref: "#/components/schemas/NullableString" }
+        vendor_logo_url: { $ref: "#/components/schemas/NullableString" }
+        vendor_is_featured: { type: boolean, description: "Paid placement; show with a \"Sponsored\" label." }
+        is_verified: { type: boolean }
+        area_name: { $ref: "#/components/schemas/NullableString" }
+        area_name_bn: { $ref: "#/components/schemas/NullableString" }
+        primary_category: { $ref: "#/components/schemas/NullableString" }
+        primary_category_bn: { $ref: "#/components/schemas/NullableString" }
+        primary_category_slug: { $ref: "#/components/schemas/NullableString" }
+        rating: { $ref: "#/components/schemas/NumericString" }
+        review_count: { $ref: "#/components/schemas/NumericString" }
+        open_state: { $ref: "#/components/schemas/OpenState" }
+        close_time_today: { type: [string, "null"], description: "HH:MM:SS; null when closed, 24 h or unknown." }
+    BusinessDetail:
+      type: object
+      required: [business, categories, hours, photos, listings, facts, reviews, ratingDistribution, similar, social]
+      properties:
+        business:
+          allOf:
+            - $ref: "#/components/schemas/BusinessCard"
+            - type: object
+              required: [vendor_phone, vendor_created_at]
+              properties:
+                vendor_phone: { type: string }
+                vendor_whatsapp: { $ref: "#/components/schemas/NullableString" }
+                vendor_email: { $ref: "#/components/schemas/NullableString" }
+                vendor_website: { $ref: "#/components/schemas/NullableString" }
+                vendor_lat: { type: [string, "null"] }
+                vendor_lng: { type: [string, "null"] }
+                vendor_created_at: { type: string, format: date-time }
+        categories:
+          type: array
+          items:
+            type: object
+            required: [name, slug]
+            properties: { name: { type: string }, name_bn: { $ref: "#/components/schemas/NullableString" }, slug: { type: string } }
+        hours:
+          type: array
+          description: Days with no row have no hours recorded. `day` 0 = Sunday.
+          items:
+            type: object
+            required: [day, is_closed, is_24h]
+            properties:
+              day: { type: integer, minimum: 0, maximum: 6 }
+              open_time: { type: [string, "null"] }
+              close_time: { type: [string, "null"] }
+              is_closed: { type: boolean }
+              is_24h: { type: boolean }
+        photos:
+          type: array
+          description: The business's own photos first (the first is the cover), then listing photos.
+          items:
+            type: object
+            required: [url]
+            properties: { url: { type: string }, alt: { $ref: "#/components/schemas/NullableString" } }
+        listings:
+          type: array
+          items:
+            type: object
+            required: [listing_id, title, slug]
+            properties:
+              listing_id: { type: integer }
+              title: { type: string }
+              title_bn: { $ref: "#/components/schemas/NullableString" }
+              slug: { type: string }
+              description: { $ref: "#/components/schemas/NullableString" }
+              price: { oneOf: [{ $ref: "#/components/schemas/NumericString" }, { type: "null" }], description: "Null means \"price on request\"." }
+              price_max: { oneOf: [{ $ref: "#/components/schemas/NumericString" }, { type: "null" }] }
+              unit: { $ref: "#/components/schemas/NullableString" }
+              min_order_qty: { type: [integer, "null"] }
+        facts:
+          type: array
+          items:
+            type: object
+            required: [group, label, value]
+            properties:
+              group: { type: string, enum: [about, quick] }
+              label: { type: string }
+              value: { type: string }
+              icon: { $ref: "#/components/schemas/NullableString" }
+        reviews:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [review_id, rating, body, created_at, author, author_verified]
+            properties:
+              review_id: { type: integer }
+              rating: { type: integer, minimum: 1, maximum: 5 }
+              body: { type: string }
+              created_at: { type: string, format: date-time }
+              author: { type: string }
+              author_verified: { type: boolean }
+              reply: { $ref: "#/components/schemas/NullableString" }
+              replied_at: { type: [string, "null"], format: date-time }
+        ratingDistribution:
+          type: array
+          items:
+            type: object
+            required: [rating, count]
+            properties: { rating: { type: integer }, count: { type: integer } }
+        similar:
+          type: array
+          maxItems: 4
+          items:
+            allOf:
+              - $ref: "#/components/schemas/BusinessCard"
+              - type: object
+                properties: { distance_km: { oneOf: [{ $ref: "#/components/schemas/NumericString" }, { type: "null" }] } }
+        social:
+          type: array
+          items: { $ref: "#/components/schemas/SocialLink" }
+    SocialLink:
+      type: object
+      required: [platform, url]
+      properties:
+        platform: { type: string, enum: [facebook, instagram, youtube, tiktok] }
+        url: { type: string, format: uri }
+    PaymentMethod:
+      type: object
+      required: [payment_method, payment_note]
+      properties:
+        payment_method: { type: string, enum: [cash, cash_on_delivery, bank_transfer, bkash, nagad, rocket, card] }
+        payment_note: { type: [string, "null"], maxLength: 120 }
+
+    VendorSummary:
+      type: object
+      required: [vendor_id, vendor_name, vendor_slug, vendor_status]
+      properties:
+        vendor_id: { type: integer }
+        vendor_name: { type: string }
+        vendor_slug: { type: string }
+        vendor_status: { $ref: "#/components/schemas/VendorStatus" }
+    PeriodCount:
+      type: object
+      required: [current, previous]
+      properties: { current: { type: integer }, previous: { type: integer } }
+    VendorDashboard:
+      type: object
+      required: [vendor, days, stats, series, listings]
+      properties:
+        vendor:
+          type: object
+          required: [vendor_id, vendor_slug, vendor_name, vendor_phone, vendor_status, is_verified, vendor_created_at, open_state]
+          properties:
+            vendor_id: { type: integer }
+            vendor_slug: { type: string }
+            vendor_name: { type: string }
+            vendor_description: { $ref: "#/components/schemas/NullableString" }
+            vendor_phone: { type: string }
+            vendor_email: { $ref: "#/components/schemas/NullableString" }
+            vendor_address: { $ref: "#/components/schemas/NullableString" }
+            vendor_logo_url: { $ref: "#/components/schemas/NullableString" }
+            vendor_cover_url: { $ref: "#/components/schemas/NullableString" }
+            vendor_status: { $ref: "#/components/schemas/VendorStatus" }
+            vendor_rejection_reason: { $ref: "#/components/schemas/NullableString" }
+            is_verified: { type: boolean }
+            vendor_created_at: { type: string, format: date-time }
+            area_name: { $ref: "#/components/schemas/NullableString" }
+            primary_category: { $ref: "#/components/schemas/NullableString" }
+            open_state: { $ref: "#/components/schemas/OpenState" }
+            close_time_today: { $ref: "#/components/schemas/NullableString" }
+        days: { type: integer, enum: [7, 30, 90] }
+        stats:
+          type: object
+          required: [profileViews, searchAppearances, listings, rating]
+          properties:
+            profileViews: { $ref: "#/components/schemas/PeriodCount" }
+            searchAppearances: { $ref: "#/components/schemas/PeriodCount" }
+            listings:
+              type: object
+              required: [active, addedInPeriod, pending, total]
+              properties:
+                active: { type: integer }
+                addedInPeriod: { type: integer }
+                pending: { type: integer }
+                total: { type: integer }
+            rating:
+              type: object
+              required: [average, count]
+              properties: { average: { type: [number, "null"] }, count: { type: integer } }
+        series:
+          type: array
+          description: One row per day, oldest first, zero-filled. The last row is today (partial).
+          items:
+            type: object
+            required: [day, views, appearances]
+            properties:
+              day: { type: string, format: date }
+              views: { type: integer }
+              appearances: { type: integer }
+        listings:
+          type: array
+          maxItems: 3
+          items:
+            type: object
+            required: [listing_id, listing_title, listing_status]
+            properties:
+              listing_id: { type: integer }
+              listing_title: { type: string }
+              listing_price: { oneOf: [{ $ref: "#/components/schemas/NumericString" }, { type: "null" }] }
+              listing_price_max: { oneOf: [{ $ref: "#/components/schemas/NumericString" }, { type: "null" }] }
+              listing_price_unit: { $ref: "#/components/schemas/NullableString" }
+              listing_status: { $ref: "#/components/schemas/ListingStatus" }
+              category_name: { $ref: "#/components/schemas/NullableString" }
+              photo_url: { $ref: "#/components/schemas/NullableString" }
+
+    HoursEntry:
+      type: object
+      required: [day, mode, open, close]
+      properties:
+        day: { type: integer, minimum: 0, maximum: 6, description: "0 = Sunday." }
+        mode: { type: string, enum: [open, closed, 24h] }
+        open: { type: [string, "null"], pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        close: { type: [string, "null"], pattern: '^([01]\d|2[0-3]):[0-5]\d$', description: "Must be after `open`; hours past midnight are not supported." }
+    FactEntry:
+      type: object
+      required: [label, value, group]
+      properties:
+        label: { type: string, maxLength: 60 }
+        value: { type: string, maxLength: 120 }
+        group: { type: string, enum: [about, quick] }
+    VendorPhoto:
+      type: object
+      required: [id, url]
+      properties: { id: { type: integer }, url: { type: string } }
+    SocialMap:
+      type: object
+      properties:
+        facebook: { type: string }
+        instagram: { type: string }
+        youtube: { type: string }
+        tiktok: { type: string }
+    VendorProfile:
+      type: object
+      required: [vendor, category_ids, hours, photos, facts, social, listings]
+      properties:
+        vendor:
+          type: object
+          required: [vendor_id, vendor_slug, vendor_name, vendor_phone, vendor_status]
+          properties:
+            vendor_id: { type: integer }
+            vendor_slug: { type: string }
+            vendor_name: { type: string }
+            vendor_name_bn: { $ref: "#/components/schemas/NullableString" }
+            vendor_description: { $ref: "#/components/schemas/NullableString" }
+            vendor_phone: { type: string }
+            vendor_whatsapp: { $ref: "#/components/schemas/NullableString" }
+            vendor_email: { $ref: "#/components/schemas/NullableString" }
+            vendor_website: { $ref: "#/components/schemas/NullableString" }
+            vendor_address: { $ref: "#/components/schemas/NullableString" }
+            location_id: { type: [integer, "null"] }
+            vendor_logo_url: { $ref: "#/components/schemas/NullableString" }
+            vendor_cover_url: { $ref: "#/components/schemas/NullableString" }
+            vendor_status: { $ref: "#/components/schemas/VendorStatus" }
+            vendor_rejection_reason: { $ref: "#/components/schemas/NullableString" }
+        category_ids: { type: array, items: { type: integer } }
+        hours: { type: array, items: { $ref: "#/components/schemas/HoursEntry" } }
+        photos: { type: array, items: { $ref: "#/components/schemas/VendorPhoto" } }
+        facts: { type: array, items: { $ref: "#/components/schemas/FactEntry" } }
+        social: { $ref: "#/components/schemas/SocialMap" }
+        listings:
+          type: object
+          required: [total, live]
+          properties: { total: { type: integer }, live: { type: integer } }
+    VendorProfileInput:
+      type: object
+      required: [name, category_ids, location_id, address, phone, description]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        name_bn: { type: string, maxLength: 120 }
+        category_ids: { type: array, minItems: 1, maxItems: 3, items: { type: integer } }
+        location_id: { type: integer, description: "An area (location_type = area)." }
+        address: { type: string, minLength: 5, maxLength: 300 }
+        phone: { type: string, description: "Bangladeshi mobile or landline; stored as +880…", example: 01712-345678 }
+        whatsapp: { type: string }
+        description: { type: string, minLength: 20, maxLength: 500 }
+        email: { type: string }
+        website: { type: string, description: "Stored without the scheme, e.g. www.example.com." }
+        facts: { type: array, maxItems: 12, items: { $ref: "#/components/schemas/FactEntry" }, description: "Blank rows are ignored." }
+        social: { $ref: "#/components/schemas/SocialMap" }
+        hours: { type: array, maxItems: 7, items: { $ref: "#/components/schemas/HoursEntry" }, description: "Days left out have no hours recorded." }
+        photo_order: { type: array, items: { type: integer }, description: "Photo ids; the first becomes the cover." }
+        submit: { type: boolean, default: false }
+
+    Listing:
+      type: object
+      required: [listing_id, vendor_id, listing_title, listing_slug, listing_status]
+      properties:
+        listing_id: { type: integer }
+        vendor_id: { type: integer }
+        category_id: { type: [integer, "null"] }
+        listing_title: { type: string }
+        listing_title_bn: { $ref: "#/components/schemas/NullableString" }
+        listing_slug: { type: string }
+        listing_description: { $ref: "#/components/schemas/NullableString" }
+        listing_price: { oneOf: [{ $ref: "#/components/schemas/NumericString" }, { type: "null" }] }
+        listing_price_max: { oneOf: [{ $ref: "#/components/schemas/NumericString" }, { type: "null" }] }
+        listing_price_unit: { $ref: "#/components/schemas/NullableString" }
+        listing_min_order_qty: { type: [integer, "null"] }
+        listing_is_negotiable: { type: boolean }
+        listing_status: { $ref: "#/components/schemas/ListingStatus" }
+        listing_rejection_reason: { $ref: "#/components/schemas/NullableString" }
+        listing_created_at: { type: string, format: date-time }
+        category_name: { $ref: "#/components/schemas/NullableString" }
+        category_slug: { $ref: "#/components/schemas/NullableString" }
+    ListingInput:
+      type: object
+      required: [listing_title, category_id]
+      properties:
+        listing_title: { type: string }
+        listing_title_bn: { type: string }
+        listing_description: { type: string }
+        category_id: { type: integer }
+        listing_price: { type: [number, "null"], description: "Leave out for \"price on request\"." }
+        listing_price_max: { type: [number, "null"] }
+        listing_price_unit: { type: string }
+        listing_min_order_qty: { type: integer }
+        listing_is_negotiable: { type: boolean, default: true }
+    ListingSaved:
+      type: object
+      required: [success, listing_id, listing_slug, listing_status]
+      properties:
+        success: { const: true }
+        listing_id: { type: integer }
+        listing_slug: { type: string }
+        listing_status: { $ref: "#/components/schemas/ListingStatus" }
+
+    PendingBusiness:
+      type: object
+      required: [vendor_id, vendor_slug, vendor_name, vendor_phone, vendor_updated_at, owner_name, owner_phone, owner_phone_verified, listing_count, photo_count, hours_days, owner_other_businesses, resubmitted]
+      properties:
+        vendor_id: { type: integer }
+        vendor_slug: { type: string }
+        vendor_name: { type: string }
+        vendor_name_bn: { $ref: "#/components/schemas/NullableString" }
+        vendor_description: { $ref: "#/components/schemas/NullableString" }
+        vendor_phone: { type: string }
+        vendor_address: { $ref: "#/components/schemas/NullableString" }
+        vendor_cover_url: { $ref: "#/components/schemas/NullableString" }
+        vendor_created_at: { type: string, format: date-time }
+        vendor_updated_at: { type: string, format: date-time }
+        area_name: { $ref: "#/components/schemas/NullableString" }
+        owner_name: { type: string }
+        owner_phone: { type: string }
+        owner_phone_verified: { type: boolean }
+        categories: { $ref: "#/components/schemas/NullableString" }
+        listing_count: { type: integer }
+        photo_count: { type: integer }
+        hours_days: { type: integer, minimum: 0, maximum: 7 }
+        owner_other_businesses: { type: integer }
+        resubmitted: { type: boolean, description: "Rejected before and sent back by the owner." }
+    PendingListing:
+      type: object
+      required: [listing_id, listing_title, listing_created_at, vendor_id, vendor_name, vendor_slug, vendor_status]
+      properties:
+        listing_id: { type: integer }
+        listing_title: { type: string }
+        listing_description: { $ref: "#/components/schemas/NullableString" }
+        listing_price: { oneOf: [{ $ref: "#/components/schemas/NumericString" }, { type: "null" }] }
+        listing_price_max: { oneOf: [{ $ref: "#/components/schemas/NumericString" }, { type: "null" }] }
+        listing_price_unit: { $ref: "#/components/schemas/NullableString" }
+        listing_min_order_qty: { type: [integer, "null"] }
+        listing_created_at: { type: string, format: date-time }
+        category_name: { $ref: "#/components/schemas/NullableString" }
+        vendor_id: { type: integer }
+        vendor_name: { type: string }
+        vendor_slug: { type: string }
+        vendor_status: { $ref: "#/components/schemas/VendorStatus" }
+        photo_url: { $ref: "#/components/schemas/NullableString" }
+    AdminDecisionLog:
+      type: object
+      required: [audit_id, audit_action, audit_target_type, audit_target_id, audit_created_at]
+      properties:
+        audit_id: { $ref: "#/components/schemas/NumericString" }
+        audit_action: { type: string, enum: [vendor.approve, vendor.reject, listing.approve, listing.reject] }
+        audit_target_type: { type: string, enum: [vendor, listing] }
+        audit_target_id: { type: integer }
+        reason: { $ref: "#/components/schemas/NullableString" }
+        audit_created_at: { type: string, format: date-time }
+        actor_name: { $ref: "#/components/schemas/NullableString" }
+        target_label: { $ref: "#/components/schemas/NullableString" }
