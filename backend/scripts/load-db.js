@@ -25,6 +25,7 @@ const FILES = [
     "schema.v2.5.sql",
     "schema.v2.6.sql",
     "seed.v2.6.sql",
+    "schema.v2.7.sql",
 ];
 
 const dbName = process.env.PGDATABASE || "shahebbazar";

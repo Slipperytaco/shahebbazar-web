@@ -2,12 +2,34 @@ const express = require('express');
 const pool = require('../db');
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM vendors');
+        const result = await pool.query(
+            `SELECT
+                vendor_id,
+                vendor_name,
+                vendor_name_bn,
+                vendor_slug,
+                vendor_description,
+                vendor_phone,
+                vendor_email,
+                vendor_address,
+                location_id,
+                vendor_logo_url,
+                vendor_cover_url,
+                vendor_business_type,
+                vendor_status,
+                vendor_is_featured,
+                vendor_created_at
+             FROM vendors
+             WHERE vendor_status = 'approved'
+             ORDER BY vendor_name ASC`
+        );
+
         res.json(result.rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("GET /api/vendors failed:", err);
+        res.status(500).json({ error: "Unable to retrieve vendors" });
     }
 });
 
@@ -58,73 +80,163 @@ async function resolveLocation(client, city) {
     return rows.length ? rows[0].location_id : null;
 }
 
-// Vendor registration.
-router.post('/', async (req, res) => {
+// Vendor registration.// Vendor registration with stubbed NID verification.
+router.post("/", async (req, res) => {
     const {
         vendor_name,
         vendor_email,
         vendor_phone,
         vendor_address,
         vendor_city,
+        vendor_nid_reference
     } = req.body;
 
     if (!vendor_name || !String(vendor_name).trim()) {
-        return res.status(400).json({ success: false, error: 'Business name is required' });
+        return res.status(400).json({
+            success: false,
+            error: "Business name is required"
+        });
     }
+
     if (!vendor_phone || !String(vendor_phone).trim()) {
-        return res.status(400).json({ success: false, error: 'Phone number is required' });
+        return res.status(400).json({
+            success: false,
+            error: "Phone number is required"
+        });
+    }
+
+    if (
+        !vendor_nid_reference ||
+        !String(vendor_nid_reference).trim()
+    ) {
+        return res.status(400).json({
+            success: false,
+            error: "NID reference is required"
+        });
     }
 
     const name = String(vendor_name).trim();
     const phone = String(vendor_phone).trim();
-    const email = vendor_email && String(vendor_email).trim() ? String(vendor_email).trim() : null;
+
+    const email =
+        vendor_email && String(vendor_email).trim()
+            ? String(vendor_email).trim()
+            : null;
+
+    const address =
+        vendor_address && String(vendor_address).trim()
+            ? String(vendor_address).trim()
+            : null;
+
+    const nidReference = String(vendor_nid_reference).trim();
 
     const client = await pool.connect();
 
     try {
-        await client.query('BEGIN');
+        await client.query("BEGIN");
 
-        const location_id = await resolveLocation(client, vendor_city);
+        const locationId = await resolveLocation(client, vendor_city);
         const slug = await uniqueSlug(client, slugify(name));
 
-        // The account. Phone is the identifier; email is optional.
+        // Create the account first.
         const userResult = await client.query(
-            `INSERT INTO users (user_phone, user_email, user_name, user_role)
-             VALUES ($1, $2, $3, 'vendor')
-             RETURNING user_id`,
+            `INSERT INTO users (
+                user_phone,
+                user_email,
+                user_name,
+                user_role
+            )
+            VALUES ($1, $2, $3, 'vendor')
+            RETURNING user_id`,
             [phone, email, name]
         );
 
         const userId = userResult.rows[0].user_id;
 
+        // Create the related vendor profile.
         const vendorResult = await client.query(
-            `INSERT INTO vendors
-                 (user_id, vendor_name, vendor_slug, vendor_phone,
-                  vendor_email, vendor_address, location_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING vendor_id, vendor_name, vendor_slug, vendor_phone,
-                       vendor_email, vendor_address, location_id,
-                       vendor_status, vendor_created_at`,
-            [userId, name, slug, phone, email, vendor_address || null, location_id]
+            `INSERT INTO vendors (
+                user_id,
+                vendor_name,
+                vendor_slug,
+                vendor_phone,
+                vendor_email,
+                vendor_address,
+                location_id,
+                vendor_nid_reference,
+                vendor_nid_status,
+                vendor_nid_submitted_at
+            )
+            VALUES (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                'pending',
+                NOW()
+            )
+            RETURNING
+                vendor_id,
+                vendor_name,
+                vendor_slug,
+                vendor_phone,
+                vendor_email,
+                vendor_address,
+                location_id,
+                vendor_status,
+                vendor_nid_status,
+                vendor_nid_submitted_at,
+                vendor_created_at`,
+            [
+                userId,
+                name,
+                slug,
+                phone,
+                email,
+                address,
+                locationId,
+                nidReference
+            ]
         );
 
-        await client.query('COMMIT');
+        await client.query("COMMIT");
 
-        res.status(201).json({ success: true, vendor: vendorResult.rows[0] });
+        return res.status(201).json({
+            success: true,
+            message:
+                "Vendor registered and submitted for NID verification.",
+            vendor: vendorResult.rows[0]
+        });
     } catch (err) {
-        await client.query('ROLLBACK');
+        await client.query("ROLLBACK");
 
-        // 23505 is a unique violation.
-        if (err.code === '23505') {
-            const field = err.constraint === 'users_user_email_key' ? 'email address' : 'phone number';
+        if (err.code === "23505") {
+            let field = "account detail";
+
+            if (err.constraint === "users_user_email_key") {
+                field = "email address";
+            }
+
+            if (err.constraint === "users_user_phone_key") {
+                field = "phone number";
+            }
+
             return res.status(409).json({
                 success: false,
-                error: `That ${field} is already registered`,
+                error: `That ${field} is already registered`
             });
         }
 
-        console.error('POST /api/vendors failed:', err);
-        res.status(500).json({ success: false, error: err.message });
+        console.error("POST /api/vendors failed:", err);
+
+        return res.status(500).json({
+            success: false,
+            error: "Unable to register vendor"
+        });
     } finally {
         client.release();
     }
