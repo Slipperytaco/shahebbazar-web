@@ -27,6 +27,12 @@ const REQUIRED_OBJECTS = {
 // Required columns added to existing tables, as "table.column".
 const REQUIRED_COLUMNS = {
     "reviews.review_reply": "schema.v2.6.sql",
+
+    "vendors.vendor_nid_reference": "schema.v2.7.sql",
+    "vendors.vendor_nid_status": "schema.v2.7.sql",
+    "vendors.vendor_nid_submitted_at": "schema.v2.7.sql",
+    "vendors.vendor_nid_verified_at": "schema.v2.7.sql",
+    "vendors.vendor_nid_verified_by": "schema.v2.7.sql",
 };
 
 // Checks all required objects in a single query.
