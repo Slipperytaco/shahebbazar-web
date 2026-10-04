@@ -77,7 +77,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
                             <h3 className="text-[0.9375rem] font-semibold">{column.title}</h3>
                             <ul className="mt-3.5 space-y-2.5">
                                 {column.links.map((link) => (
-                                    <li key={link.href}>
+    <li key={`${link.href}-${link.label}`}>
                                         <Link
                                             href={localeHref(link.href, locale)}
                                             className="text-[0.8125rem] text-muted hover:text-brand-600"
