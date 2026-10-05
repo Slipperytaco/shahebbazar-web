@@ -1,5 +1,5 @@
 # Authentication and RBAC Audit
-
+** KAN-124 not KAN-117
 **Project:** Shahebbazar  
 **Audit area:** User authentication, session handling and role-based access control  
 **Status:** RBAC foundation in progress  
