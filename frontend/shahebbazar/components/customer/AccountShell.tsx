@@ -20,7 +20,7 @@ export function AccountShell({
     return (
         <AppShell locale="en" current="/account">
             <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-            <nav aria-label="Account" className="mt-4 flex gap-1 overflow-x-auto border-b border-line">
+            <nav aria-label="Account" className="no-scrollbar mt-4 flex gap-1 overflow-x-auto border-b border-line">
                 {TABS.map((tab) => (
                     <Link
                         key={tab.key}
