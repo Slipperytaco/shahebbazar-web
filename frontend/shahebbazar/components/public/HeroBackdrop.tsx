@@ -1,7 +1,28 @@
 // Crossfading hero backdrop in pure CSS, so the home page stays server rendered.
 
 // No licensed photography of Rajshahi yet, so the drawn scenes are used instead.
-const PHOTOS: { src: string; alt: string }[] = [];
+const PHOTOS: { src: string; alt: string }[] = [
+    {
+        src: "/hero/rajshahi-1.jpg",
+        alt: "Rajshahi",
+    },
+    {
+        src: "/hero/rajshahi-2.jpg",
+        alt: "Rajshahi",
+    },
+    {
+        src: "/hero/rajshahi-3.jpg",
+        alt: "Rajshahi",
+    },
+    {
+        src: "/hero/rajshahi-4.jpg",
+        alt: "Rajshahi",
+    },
+    {
+        src: "/hero/rajshahi-5.jpg",
+        alt: "Rajshahi",
+    },
+];
 
 const HOLD_SECONDS = 7;
 const FADE_SECONDS = 1.4;

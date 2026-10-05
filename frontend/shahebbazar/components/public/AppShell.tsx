@@ -15,7 +15,7 @@ export function AppShell({
 }) {
     return (
         <div className="flex min-h-screen flex-col">
-            <SiteHeader locale={locale} />
+            <SiteHeader locale={locale} current={current} />
 
             {/* Declared here rather than on <html>, which the layout renders without access to the query string. */}
             <div
