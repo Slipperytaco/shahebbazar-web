@@ -14,6 +14,7 @@ import {
     Wallet,
     type LucideIcon,
 } from "lucide-react";
+import { MobileMenu } from "../shared/MobileMenu";
 
 // Page frame for the provider area: header, navigation rail and content.
 
@@ -79,6 +80,15 @@ export function ProviderShell({
     children: React.ReactNode;
 }) {
     const initial = vendor.vendor_name.trim().charAt(0).toUpperCase() || "?";
+    const navList = (
+        <ul className="space-y-0.5">
+            {NAV.map((item) => (
+                <li key={item.key}>
+                    <NavRow item={item} vendorId={vendor.vendor_id} active={item.key === current} />
+                </li>
+            ))}
+        </ul>
+    );
 
     return (
         <div className="flex min-h-screen flex-col">
@@ -86,7 +96,7 @@ export function ProviderShell({
                 <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:px-6">
                     <Link href="/" className="flex shrink-0 items-center gap-2">
                         <MapPin className="size-6 fill-brand-600 text-brand-600" strokeWidth={1.5} />
-                        <span className="text-[1.35rem] font-bold tracking-tight text-brand-600">
+                        <span className="text-xl font-bold tracking-tight text-brand-600 sm:text-[1.35rem]">
                             Shahebbazar
                         </span>
                     </Link>
@@ -107,39 +117,27 @@ export function ProviderShell({
                             >
                                 {initial}
                             </span>
-                            <div className="min-w-0 leading-tight">
+                            <div className="hidden min-w-0 leading-tight min-[420px]:block">
                                 <p className="truncate text-sm font-semibold">{vendor.vendor_name}</p>
                                 <p className="text-[0.75rem] text-muted">Business Owner</p>
                             </div>
                         </div>
+
+                        <MobileMenu>
+                            <p className="truncate px-3.5 pb-2 text-sm font-semibold">{vendor.vendor_name}</p>
+                            <nav aria-label="Provider">
+                                {navList}
+                            </nav>
+                            <Link
+                                href="/vendors/dashboard"
+                                className="mt-3 block border-t border-line px-3.5 pt-3 text-sm font-medium text-muted hover:text-ink"
+                            >
+                                Switch business
+                            </Link>
+                        </MobileMenu>
                     </div>
                 </div>
             </header>
-
-            {/* Mobile: the enabled destinations as a scrolling row. */}
-            <nav
-                aria-label="Provider"
-                className="border-b border-line bg-surface lg:hidden"
-            >
-                <ul className="flex gap-1 overflow-x-auto px-4 py-2">
-                    {NAV.filter((item) => item.path && !("hash" in item && item.hash)).map((item) => (
-                        <li key={item.key} className="shrink-0">
-                            <Link
-                                href={providerHref(item.path!, vendor.vendor_id)}
-                                aria-current={item.key === current ? "page" : undefined}
-                                className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[0.8125rem] font-medium ${
-                                    item.key === current
-                                        ? "bg-brand-50 text-brand-600"
-                                        : "text-muted hover:text-ink"
-                                }`}
-                            >
-                                <item.Icon className="size-4" strokeWidth={1.75} />
-                                {item.label}
-                            </Link>
-                        </li>
-                    ))}
-                </ul>
-            </nav>
 
             <div className="mx-auto flex w-full max-w-[1440px] flex-1 gap-6 px-4 py-6 sm:px-6">
                 <aside className="hidden w-[236px] shrink-0 lg:block">
@@ -147,15 +145,8 @@ export function ProviderShell({
                         aria-label="Provider"
                         className="rounded-xl border border-line bg-surface p-2 shadow-card"
                     >
-                        <ul className="space-y-0.5">
-                            {NAV.map((item) => (
-                                <li key={item.key}>
-                                    <NavRow item={item} vendorId={vendor.vendor_id} active={item.key === current} />
-                                </li>
-                            ))}
-                        </ul>
+                        {navList}
                     </nav>
-
                 </aside>
 
                 <main className="min-w-0 flex-1">{children}</main>

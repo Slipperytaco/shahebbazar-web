@@ -26,6 +26,34 @@ const LINKS: NavLink[] = [
     { key: "navAddBusiness", href: "/vendors/register", Icon: SquarePlus },
 ];
 
+export function MainNavList({ locale, current = "/" }: { locale: Locale; current?: string }) {
+    const copy = t(locale);
+
+    return (
+        <ul className="space-y-0.5">
+            {LINKS.map(({ key, href, Icon }) => {
+                const active = href === current;
+                return (
+                    <li key={href}>
+                        <Link
+                            href={localeHref(href, locale)}
+                            aria-current={active ? "page" : undefined}
+                            className={`flex items-center gap-3 rounded-[10px] px-3.5 py-2.5 text-sm transition-colors ${
+                                active
+                                    ? "bg-brand-50 font-semibold text-brand-600"
+                                    : "font-medium text-muted hover:bg-surface-2 hover:text-ink"
+                            }`}
+                        >
+                            <Icon className="size-[19px]" strokeWidth={1.75} />
+                            <span>{copy[key]}</span>
+                        </Link>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+}
+
 export function SideNav({ locale, current = "/" }: { locale: Locale; current?: string }) {
     const copy = t(locale);
 
@@ -35,27 +63,7 @@ export function SideNav({ locale, current = "/" }: { locale: Locale; current?: s
                 aria-label="Main"
                 className="rounded-xl border border-line bg-surface p-2 shadow-card"
             >
-                <ul className="space-y-0.5">
-                    {LINKS.map(({ key, href, Icon }) => {
-                        const active = href === current;
-                        return (
-                            <li key={href}>
-                                <Link
-                                    href={localeHref(href, locale)}
-                                    aria-current={active ? "page" : undefined}
-                                    className={`flex items-center gap-3 rounded-[10px] px-3.5 py-2.5 text-sm transition-colors ${
-                                        active
-                                            ? "bg-brand-50 font-semibold text-brand-600"
-                                            : "font-medium text-muted hover:bg-surface-2 hover:text-ink"
-                                    }`}
-                                >
-                                    <Icon className="size-[19px]" strokeWidth={1.75} />
-                                    <span>{copy[key]}</span>
-                                </Link>
-                            </li>
-                        );
-                    })}
-                </ul>
+                <MainNavList locale={locale} current={current} />
             </nav>
 
             <div className="mt-4 rounded-xl border border-line bg-surface p-5 shadow-card">
