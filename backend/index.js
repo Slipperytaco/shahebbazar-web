@@ -26,6 +26,7 @@ const eventsRouter = require('./routes/events');
 const vendorSettingsRouter = require('./routes/vendorSettings');
 const adminCategoriesRouter = require('./routes/adminCategories');
 const { startNotificationWorker } = require('./lib/notify');
+const authRouter = require("./routes/auth");
 
 const {
     resolveSession,
@@ -49,6 +50,8 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(resolveSession); // Populates req.user and req.session if a valid session cookie is present.
+
+app.use('/api/auth', authRouter);
 
 // Serves the paths stored in listing_photos.photo_url and vendors.vendor_cover_url.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

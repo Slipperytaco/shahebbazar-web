@@ -857,3 +857,29 @@ No existing customer, vendor, admin or moderation routes have been protected yet
 No login mechanism has been implemented.
 
 No authentication secrets or real identity information have been committed.
+
+
+
+## Client Authentication Decision
+
+The client confirmed that live SMS delivery is deferred for Phase 1 due
+to provider costs.
+
+The project should continue using phone numbers as the primary account
+identifier and implement a mock verification-delivery mechanism.
+
+The mock replaces SMS delivery only. The following parts should remain
+real:
+
+- Verification-code generation
+- Verification-code hashing
+- Expiration handling
+- Attempt limits
+- Code consumption
+- Phone verification timestamps
+- Server-side session creation
+- Session-cookie handling
+- Role-based access control
+
+The mock verification code must be available only in the local backend
+terminal and must not be exposed in production responses.
