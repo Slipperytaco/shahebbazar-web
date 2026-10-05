@@ -163,7 +163,7 @@ export function BusinessProfile({
                 {/* In-page anchors rather than tab panels. */}
                 <nav
                     aria-label="Sections"
-                    className="flex gap-1 overflow-x-auto border-t border-line px-5 sm:px-6"
+                    className="no-scrollbar flex gap-1 overflow-x-auto border-t border-line px-5 sm:px-6"
                 >
                     {sections.map((section, index) => (
                         <a
