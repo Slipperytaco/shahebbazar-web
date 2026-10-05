@@ -857,3 +857,54 @@ No existing customer, vendor, admin or moderation routes have been protected yet
 No login mechanism has been implemented.
 
 No authentication secrets or real identity information have been committed.
+
+
+
+## Client Authentication Decision
+
+The client confirmed that live SMS delivery is deferred for Phase 1 due
+to provider costs.
+
+The project should continue using phone numbers as the primary account
+identifier and implement a mock verification-delivery mechanism.
+
+The mock replaces SMS delivery only. The following parts should remain
+real:
+
+- Verification-code generation
+- Verification-code hashing
+- Expiration handling
+- Attempt limits
+- Code consumption
+- Phone verification timestamps
+- Server-side session creation
+- Session-cookie handling
+- Role-based access control
+
+The mock verification code must be available only in the local backend
+terminal and must not be exposed in production responses.
+
+### Mock verification request testing
+
+The `POST /api/auth/request-verification` endpoint was tested after
+merging the latest changes from `main`.
+
+Confirmed:
+
+- A valid phone number and purpose return a successful response.
+- Common Bangladesh phone-number input is normalised.
+- A secure six-digit mock verification code is generated.
+- The raw code appears only in the local API terminal.
+- The API response does not expose the raw code.
+- PostgreSQL stores only the HMAC-SHA256 code hash.
+- Verification records include a five-minute expiry.
+- Attempt count starts at zero.
+- The consumed timestamp starts as null.
+- Invalid phone input returns HTTP 400.
+- Invalid verification purpose returns HTTP 400.
+- The fourth matching request within the configured window returns HTTP 429.
+- API health remains operational.
+- Anonymous `GET /api/auth/me` continues to return HTTP 401.
+
+No user was authenticated and no session was created during this
+implementation slice.

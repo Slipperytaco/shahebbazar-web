@@ -74,11 +74,11 @@ Two things this buys:
   `/business/<slug>` — not `/customer/business/<slug>`. The client requires
   shop pages to be crawlable, and a `/customer` prefix would make every
   indexed URL longer for no benefit.
-- **One gate per area.** The auth check lives in the group's `layout.tsx`,
-  so every page in the folder is protected by default and nobody has to
-  remember to add a check to a new screen. Both gates are `TODO(auth)`
-  right now — they redirect nothing until sessions exist, which is fine
-  while there is no real data behind them and **must not ship**.
+- **One intended gate per private area.** The customer, provider and admin
+  route groups each have a layout intended to enforce authentication and
+  role access. These frontend gates are currently incomplete and must not
+  be treated as security controls until they are connected to the
+  server-side session workflow.
 
 Registration sits in `(public)` on purpose: you are not a vendor yet when
 you sign up, so it must be outside the provider gate.
@@ -167,6 +167,11 @@ PGPASSWORD=YOUR_POSTGRES_PASSWORD
 
 PORT=4000
 ANALYTICS_SALT=shahebbazar-local-dev
+CORS_ORIGIN=http://localhost:3000
+ 
+# Phase 1 mock phone verification
+MOCK_VERIFICATION_DELIVERY=console
+OTP_HASH_SECRET=GENERATE_A_UNIQUE_LOCAL_SECRET
 ```
 
 Replace:
@@ -186,6 +191,16 @@ backend/.env.example
 ```
 
 should be committed to the repository.
+
+Generate a local OTP hashing secret with:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Copy the generated value into `OTP_HASH_SECRET` in `backend/.env`.
+
+Do not commit the generated secret or the real `backend/.env` file.
 
 
 ### 4. Start the database and load it
@@ -309,7 +324,6 @@ Each sub-project still works on its own — `cd backend && npm run dev`, or
 `cd frontend/shahebbazar && npm run dev` — if you prefer separate terminals.
 
 ---
-
 ## Environment variables
 
 The local backend environment file is:
@@ -343,7 +357,9 @@ The main backend environment variables are:
 | `PGPASSWORD` | PostgreSQL password |
 | `PORT` | Backend API port, default `4000` |
 | `ANALYTICS_SALT` | Salt used for analytics visitor hashing |
-| `CORS_ORIGIN` | Allowed browser origins when required |
+| `CORS_ORIGIN` | Comma-separated browser origins permitted to call the API |
+| `MOCK_VERIFICATION_DELIVERY` | Development verification delivery; use `console` for the Phase 1 mock |
+| `OTP_HASH_SECRET` | Private server secret used to hash verification codes |
 
 Example:
 
@@ -356,38 +372,146 @@ PGPASSWORD=YOUR_POSTGRES_PASSWORD
 
 PORT=4000
 ANALYTICS_SALT=shahebbazar-local-dev
+CORS_ORIGIN=http://localhost:3000
+
+# Phase 1 mock phone verification
+MOCK_VERIFICATION_DELIVERY=console
+OTP_HASH_SECRET=GENERATE_A_UNIQUE_LOCAL_SECRET
 ```
 
-Do not commit `backend/.env`.
+Generate a unique local OTP hashing secret with:
 
-The repository should only contain the safe template:
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Copy the generated value into `OTP_HASH_SECRET` in `backend/.env`.
+
+Do not commit:
+
+- `backend/.env`
+- The generated `OTP_HASH_SECRET`
+- Raw verification codes
+- Session tokens
+
+The repository should contain only the safe template:
 
 ```text
 backend/.env.example
 ```
 
 ---
+## Phase 1 phone verification
 
+Phone number is the primary account identifier. Live SMS delivery is
+deferred for Phase 1 due to provider costs, so the development environment
+uses a client-approved mock delivery method.
+
+The current verification-request flow is:
+
+```text
+Client submits phone number and purpose
+        ↓
+Backend normalises and validates the phone number
+        ↓
+Backend generates a six-digit verification code
+        ↓
+Backend stores only an HMAC-SHA256 hash of the code
+        ↓
+Code expires after five minutes
+        ↓
+Mock delivery prints the code in the local API terminal
+```
+
+The raw code is not stored in PostgreSQL and is not returned in the API
+response.
+
+### Request a mock verification code
+
+```http
+POST /api/auth/request-verification
+Content-Type: application/json
+```
+
+Example request:
+
+```json
+{
+  "phone": "+8801700000100",
+  "purpose": "login"
+}
+```
+
+Supported purposes:
+
+```text
+login
+register
+recover
+verify
+```
+
+Successful response:
+
+```json
+{
+  "success": true,
+  "message": "A verification code has been generated."
+}
+```
+
+Development-only terminal output:
+
+```text
+[mock verification] phone: <normalised phone>
+[mock verification] purpose: <purpose>
+[mock verification] code: <six-digit code>
+```
+
+Do not include mock codes in commits, screenshots, Jira evidence or
+documentation.
+
+The endpoint currently includes:
+
+- Bangladesh phone-number normalisation
+- Phone-format validation
+- Verification-purpose validation
+- Secure six-digit code generation
+- HMAC-SHA256 code hashing
+- Five-minute expiry
+- Request limiting by phone number and purpose
+- Request-IP recording
+- Console-only mock delivery outside production
+
+The current development policy permits three matching requests for the
+same phone number and verification purpose within ten minutes. A fourth
+request during that window returns HTTP `429 Too Many Requests`.
+
+Code confirmation, code consumption, session creation, registration,
+login, logout and full protected-route integration are still in progress.
+
+---
 ## API
 
-Public, read-only. Everything returns approved rows only.
+The API contains public discovery endpoints and account, vendor and
+administrative endpoints. Public discovery endpoints return approved
+records only. Authentication and RBAC integration for private endpoints
+is currently in progress.
 
 | Method | Route | Returns |
 | --- | --- | --- |
-| GET | `/api/health` | Liveness plus whether the database is reachable |
+| GET | `/api/health` | API, database and schema health |
 | GET | `/api/home` | `{ categories, featured, events, popularSearches }` |
 | GET | `/api/categories` | Full category tree |
-| GET | `/api/businesses` | `{ results, sponsored, total, limit, offset, sort, facets }` — filters: `q`, `category`, `area`, `sort`, `limit`, `offset`. `facets` carries area and category counts for the sidebar. |
-| GET | `/api/businesses/:slug` | One profile: business, categories, opening hours, photos, services, facts, reviews, rating distribution and nearby similar shops. 404 for an unknown or unapproved shop. |
-
-Vendor routes (`/api/vendors`, `/api/vendors/:id/listings`, …) still use the
-original column names and need the updates listed in `SCHEMA-NOTES.md` §4.
+| GET | `/api/businesses` | Search results, sponsored results, pagination and facets |
+| GET | `/api/businesses/:slug` | Approved business profile, opening hours, photos, services, reviews and ratings |
+| GET | `/api/auth/me` | Safe account details for the authenticated user; returns `401` without a valid session |
+| POST | `/api/auth/request-verification` | Generates and stores a hashed mock verification code; the raw code appears only in the local API terminal |
 
 **Sponsored results are returned in their own array**, never mixed into
-`results`. Paid placement has to render with a visible label.
+`results`. Paid placement must render with a visible label.
 
 ---
-
 ## Conventions
 
 Database:
@@ -449,8 +573,7 @@ feature/<task>  individual work
 ---
 
 ## Troubleshooting
-
-**Check `http://localhost:4000/api/health` first.** It reports the
+**Check http://localhost:4000/api/health first.** It reports the
 connection and the schema separately, and tells you what to run:
 
 ```json
@@ -469,24 +592,53 @@ connection and the schema separately, and tells you what to run:
 | `ECONNREFUSED` from the API, or `PostgreSQL is not accepting connections` from `db:load` | The database container is not running. `docker compose up -d` from the repo root. Check with `docker compose ps`. |
 | `password authentication failed` | `PGPASSWORD` in `backend/.env` does not match `docker-compose.yml`. |
 | `database "shahebbazar" does not exist` | `npm run db:load` creates it. |
+| Verification request returns `500` and the API reports that `OTP_HASH_SECRET` is not configured | Generate an `OTP_HASH_SECRET`, add it to `backend/.env`, then restart the API. |
+| Verification succeeds but no code appears in the API terminal | Confirm `MOCK_VERIFICATION_DELIVERY=console`, ensure `NODE_ENV` is not `production`, then restart the API. |
+| Verification request returns `429` | Three matching requests already exist for that phone number and purpose within ten minutes. Wait for the window to pass or use another synthetic test number. |
+| `Cannot POST /api/auth/request-verification` | Confirm `authRouter` is mounted at `/api/auth` in `backend/index.js`, save the file and restart the API. |
+| `/api/auth/me` returns `401` | This is expected when no valid session cookie exists. Session issuance is not yet implemented. |
 
 ## Known gaps
 
 Tracked so nobody rediscovers them:
+- **Authentication and RBAC are in progress.** Backend middleware can read
+  a session cookie, hash its token, resolve an active unexpired session,
+  load the active user and enforce authentication, roles and vendor
+  ownership. Anonymous `/api/auth/me` requests correctly return `401`.
+  Code confirmation, session issuance, logout, customer registration and
+  migration of existing private routes away from seeded identity helpers
+  remain outstanding.
 
-- **Auth does not exist yet.** `users`, `otp_codes` and `sessions` are in the
-  schema; nothing writes to them. RBAC, RFQ, messaging and admin all wait on
-  this.
-- The vendor register/dashboard pages are the original client-side ones and
-  still post the old column names.
+- **Live SMS delivery is deferred for Phase 1.** Development currently uses
+  a client-approved console mock. Verification-code generation, hashing,
+  expiry, request limiting and database storage are implemented. Only the
+  delivery step is mocked.
+
+- **Business registration needs final authentication integration.** The
+  current flow creates linked `users` and `vendors` records and stores the
+  NID reference with a pending status. The page still needs clearer
+  business-specific wording and must be connected to phone verification
+  and session creation.
+
+- **The vendor dashboard requires a separate schema and ownership audit.**
+  Successful business registration does not confirm that every dashboard
+  mutation is current or adequately protected.
+
+- **Frontend private route groups are not fully protected.** The customer,
+  provider and admin layouts still require integration with the
+  server-side session and RBAC workflow.
+
 - Language is `?lang=bn`, which opts pages out of static generation. Crawling
   is unaffected. Locale-prefixed routes (`/en`, `/bn`) are the fix before
   launch.
+
 - Categories, deals, events and blog pages are linked in the navigation but
   not built, so those nav items 404.
+
 - Maps are drawn SVG sketches, not real maps — a live map needs an API key
   the client has not provided. Swap in Leaflet with OpenStreetMap tiles
   (no key required) when maps become scope.
+
 - `/api/home` responses are cached for 5 minutes. After changing seed data,
   restart the frontend or delete `frontend/shahebbazar/.next` — otherwise
   you will debug a stale payload.
