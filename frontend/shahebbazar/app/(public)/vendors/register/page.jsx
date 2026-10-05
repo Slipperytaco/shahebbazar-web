@@ -8,7 +8,8 @@ export default function VendorRegister() {
         vendor_email: "",
         vendor_phone: "",
         vendor_address: "",
-        vendor_city: ""
+        vendor_city: "",
+        vendor_nid_reference: "",
     });
     // status msg - success or error: 
     const [status, setStatus] = useState(null);
@@ -22,23 +23,52 @@ export default function VendorRegister() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        const res = await fetch("http://localhost:4000/api/vendors", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(form)
-        });
+        setStatus(null);
 
-        const data = await res.json();
-        console.log("API Response:", data);
-        // log response in console + return error msg or success msg based off API response 
-        console.log("Vendor created:", data);
+        try {
+            const res = await fetch(
+                "http://localhost:4000/api/vendors",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(form)
+                }
+            );
 
-        if (data.success) {
-            setStatus({ type: "success", message: "Vendor registered successfully!" });
-        } else {
-            setStatus({ type: "error", message: "Error registering vendor: " + data.error });
+            const data = await res.json();
+
+            if (!res.ok) {
+                setStatus({
+                    type: "error",
+                    message: data.error || "Unable to register vendor."
+                });
+                return;
+            }
+
+            setStatus({
+                type: "success",
+                message:
+                    "Vendor registered. NID verification is pending."
+            });
+
+            setForm({
+                vendor_name: "",
+                vendor_email: "",
+                vendor_phone: "",
+                vendor_address: "",
+                vendor_city: "",
+                vendor_nid_reference: ""
+            });
+        } catch (err) {
+            console.error("Vendor registration request failed:", err);
+
+            setStatus({
+                type: "error",
+                message: "Unable to contact the registration service."
+            });
         }
-
     };
     let statusClass = "";
     if (status?.type === "success") statusClass = "form-status-success";
@@ -55,11 +85,34 @@ export default function VendorRegister() {
                 )}
                 <div className="flex flex-col gap-4">
                     <form onSubmit={handleSubmit}>
-                        <input name="vendor_name" placeholder="Business name (required)" onChange={handleChange} className="form-input" />
-                        <input name="vendor_email" placeholder="Email" onChange={handleChange} className="form-input" />
-                        <input name="vendor_phone" placeholder="Phone (required)" onChange={handleChange} className="form-input" />
-                        <input name="vendor_address" placeholder="Address" onChange={handleChange} className="form-input" />
-                        <input name="vendor_city" placeholder="Area, e.g. Kazla" onChange={handleChange} className="form-input" />
+                        <input name="vendor_name" placeholder="Business name (required)" value={form.vendor_name} onChange={handleChange} className="form-input" required/>
+                        <input name="vendor_email" placeholder="Email" value={form.vendor_email} onChange={handleChange} className="form-input" required />
+                        <input name="vendor_phone" placeholder="Phone (required)" value={form.vendor_phone} onChange={handleChange} className="form-input" required />
+                        <input name="vendor_address" placeholder="Address" value={form.vendor_address} onChange={handleChange} className="form-input" required/>
+                        <input name="vendor_city" placeholder="Area, e.g. Kazla" value={form.vendor_city} onChange={handleChange} className="form-input" required/>
+                        <label
+                            htmlFor="vendor_nid_reference"
+                            className="block text-sm font-medium"
+                        >
+                            National ID reference
+                        </label>
+
+                        <input
+                            id="vendor_nid_reference"
+                            name="vendor_nid_reference"
+                            type="text"
+                            placeholder="National ID reference (required)"
+                            value={form.vendor_nid_reference}
+                            onChange={handleChange}
+                            className="form-input"
+                            autoComplete="off"
+                            required
+                        />
+
+                        <p className="mb-4 text-sm text-gray-500">
+                            The NID reference will be submitted for verification. New vendor
+                            registrations remain pending until reviewed.
+                        </p>
                         <button type="submit" className="form-button-primary">
                             Register Vendor
                         </button>

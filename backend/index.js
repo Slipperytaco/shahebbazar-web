@@ -27,6 +27,11 @@ const vendorSettingsRouter = require('./routes/vendorSettings');
 const adminCategoriesRouter = require('./routes/adminCategories');
 const { startNotificationWorker } = require('./lib/notify');
 
+const {
+    resolveSession,
+    requireAuthenticatedUser
+} = require("./lib/middleware/auth");
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
@@ -43,6 +48,7 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
 
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
+app.use(resolveSession); // Populates req.user and req.session if a valid session cookie is present.
 
 // Serves the paths stored in listing_photos.photo_url and vendors.vendor_cover_url.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -65,6 +71,16 @@ app.use('/api', eventsRouter);
 app.use('/api', vendorSettingsRouter);
 app.use('/api', adminCategoriesRouter);
 
+app.get(
+    "/api/auth/me",
+    requireAuthenticatedUser,
+    (req, res) => {
+        res.json({
+            authenticated: true,
+            user: req.user
+        });
+    }
+);
 // GET /api/health: reports connectivity and schema completeness separately.
 app.get('/api/health', async (req, res) => {
     let time;
