@@ -883,3 +883,28 @@ real:
 
 The mock verification code must be available only in the local backend
 terminal and must not be exposed in production responses.
+
+### Mock verification request testing
+
+The `POST /api/auth/request-verification` endpoint was tested after
+merging the latest changes from `main`.
+
+Confirmed:
+
+- A valid phone number and purpose return a successful response.
+- Common Bangladesh phone-number input is normalised.
+- A secure six-digit mock verification code is generated.
+- The raw code appears only in the local API terminal.
+- The API response does not expose the raw code.
+- PostgreSQL stores only the HMAC-SHA256 code hash.
+- Verification records include a five-minute expiry.
+- Attempt count starts at zero.
+- The consumed timestamp starts as null.
+- Invalid phone input returns HTTP 400.
+- Invalid verification purpose returns HTTP 400.
+- The fourth matching request within the configured window returns HTTP 429.
+- API health remains operational.
+- Anonymous `GET /api/auth/me` continues to return HTTP 401.
+
+No user was authenticated and no session was created during this
+implementation slice.
