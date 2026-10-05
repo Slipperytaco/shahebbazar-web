@@ -126,15 +126,67 @@ npm run setup     # installs backend/ and frontend/shahebbazar/
 
 ### 3. Configure
 
-```bash
-cp backend/.env.example backend/.env
-cp frontend/shahebbazar/.env.example frontend/shahebbazar/.env.local
+The real backend `.env` file is not stored in Git. A safe template is provided at:
+
+```text
+backend/.env.example
 ```
 
-The defaults in `.env.example` already match `docker-compose.yml`, so if
-you are using Docker there is nothing to edit. Change `PGUSER`,
-`PGPASSWORD` and `PGPORT` only if you are pointing at your own PostgreSQL
-install.
+#### Windows PowerShell
+
+Run this command in PowerShell:
+
+```powershell
+Copy-Item backend\.env.example backend\.env
+```
+
+#### macOS / Linux / Git Bash
+
+Run this command in the terminal:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Then open:
+
+```text
+backend/.env
+```
+
+If you are using the Docker setup provided with this project, the default values in `.env.example` should already match `docker-compose.yml`.
+
+If you are using your own PostgreSQL installation, update the following values in `backend/.env` to match your local setup:
+
+```env
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=shahebbazar
+PGUSER=postgres
+PGPASSWORD=YOUR_POSTGRES_PASSWORD
+
+PORT=4000
+ANALYTICS_SALT=shahebbazar-local-dev
+```
+
+Replace:
+
+```env
+PGPASSWORD=YOUR_POSTGRES_PASSWORD
+```
+
+with your actual local PostgreSQL password.
+
+Do not commit `backend/.env` to Git.
+
+Only the safe template file:
+
+```text
+backend/.env.example
+```
+
+should be committed to the repository.
+
 
 ### 4. Start the database and load it
 
@@ -148,8 +200,7 @@ npm run db:load               # creates the schema and seeds it
 `--wait` blocks until the container reports healthy, so `db:load` cannot
 run against a database that is still starting up.
 
-`db:load` applies all six SQL files in the right order and prints a row
-count so you know it worked:
+`db:load` applies the current schema and seed files in the required order and prints a row count so you know it worked:
 
 ```
   businesses         13
@@ -186,23 +237,40 @@ Usually because you have a system-wide PostgreSQL. Put `DB_PORT=5433` in a
 `.env` file next to `docker-compose.yml`, set `PGPORT=5433` in
 `backend/.env`, and `docker compose up -d` again.
 
-#### Loading by hand instead
+#### Loading the database manually
 
-`npm run db:load` is the supported path. If you would rather run the SQL
-yourself in pgAdmin, run these **in order**:
+The recommended method is:
 
-| Order | File | What it does |
-| --- | --- | --- |
-| 1 | `database/schema.v2.sql` | Core schema — 18 tables, 3 views |
-| 2 | `database/schema.v2.1.sql` | Opening hours, events, saved businesses |
-| 3 | `database/seed.v2.sql` | B2B sample merchants, categories, RFQs |
-| 4 | `database/seed.v2.1.sql` | Consumer directory content for the home page |
-| 5 | `database/schema.v2.2.sql` | Website field and `vendor_facts` for the profile page |
-| 6 | `database/seed.v2.2.sql` | Profile detail: services, facts, written reviews |
+```bash
+npm run db:load
+```
 
-`database/SCHEMA-NOTES.md` explains what changed from the original
-`schema.sql` and why, mapped to the client's scope email. The old
-`schema.sql` and `sampleinput.sql` are superseded — do not run them.
+This automatically applies the database schema and seed files required by the current version of the project.
+
+If you prefer to load SQL files manually using pgAdmin, check the current files inside:
+
+```text
+database/
+```
+
+and follow the order used by the project's database loading script.
+
+Because the database schema is updated during development, do not rely on an old hard-coded list of schema versions in this README.
+
+For details about database structure and schema changes, refer to:
+
+```text
+database/SCHEMA-NOTES.md
+```
+
+The older files:
+
+```text
+database/schema.sql
+database/sampleinput.sql
+```
+
+are superseded and should not be used for the current database setup.
 
 ### 5. Run it
 
@@ -244,21 +312,59 @@ Each sub-project still works on its own — `cd backend && npm run dev`, or
 
 ## Environment variables
 
-`backend/.env`
+The local backend environment file is:
+
+```text
+backend/.env
+```
+
+Create it from the provided template:
+
+### Windows PowerShell
+
+```powershell
+Copy-Item backend\.env.example backend\.env
+```
+
+### macOS / Linux / Git Bash
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+The main backend environment variables are:
 
 | Variable | Purpose |
 | --- | --- |
-| `PGHOST` `PGUSER` `PGPASSWORD` `PGDATABASE` `PGPORT` | Postgres connection |
-| `PORT` | API port, default 4000 |
-| `CORS_ORIGIN` | Comma-separated allowed browser origins. Never a wildcard once sessions exist. |
+| `PGHOST` | PostgreSQL host, normally `localhost` |
+| `PGPORT` | PostgreSQL port, normally `5432` |
+| `PGDATABASE` | PostgreSQL database name, normally `shahebbazar` |
+| `PGUSER` | PostgreSQL username |
+| `PGPASSWORD` | PostgreSQL password |
+| `PORT` | Backend API port, default `4000` |
+| `ANALYTICS_SALT` | Salt used for analytics visitor hashing |
+| `CORS_ORIGIN` | Allowed browser origins when required |
 
-`frontend/shahebbazar/.env.local`
+Example:
 
-| Variable | Purpose |
-| --- | --- |
-| `API_BASE_URL` | Where the **Next server** reaches Express. In Docker this is the service name. |
-| `NEXT_PUBLIC_ASSET_BASE_URL` | Base URL the browser uses for uploaded images. |
-| `NEXT_PUBLIC_SITE_URL` | Public site URL. Used for canonical links and OpenGraph cards — leaving this as localhost in production breaks every share preview. |
+```env
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=shahebbazar
+PGUSER=postgres
+PGPASSWORD=YOUR_POSTGRES_PASSWORD
+
+PORT=4000
+ANALYTICS_SALT=shahebbazar-local-dev
+```
+
+Do not commit `backend/.env`.
+
+The repository should only contain the safe template:
+
+```text
+backend/.env.example
+```
 
 ---
 
@@ -336,7 +442,7 @@ Branches:
 
 ```
 main            protected, production-ready
-dev             shared development
+develop         shared development
 feature/<task>  individual work
 ```
 
