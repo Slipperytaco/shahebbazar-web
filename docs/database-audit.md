@@ -1169,3 +1169,474 @@ database/baseline/seed.sql
 ```
 
 These files must recreate the same working development database before the existing versioned files are archived or the default loader is changed.
+
+## 26. Consolidation implementation update
+
+### 7 October 2026
+
+- Created a baseline schema from the known-good PostgreSQL schema snapshot.
+- Removed only the `psql`-specific `\restrict` and `\unrestrict` guard commands from the maintained baseline.
+- Created a consolidated development seed and added the historical vendor-cover to vendor-photo backfill explicitly.
+- Added a safe baseline loader mode that defaults to a disposable `_baseline_test` database.
+- Preserved the legacy versioned loading sequence as the loader default.
+- Added automated checks for required tables, views, columns, role coverage and public business-card data.
+- Normalised generated files to UTF-8 without a byte-order mark.
+
+Status: the patch has passed static file, encoding and JavaScript syntax checks. It still requires execution against the local PostgreSQL 15 development server before merge.
+
+
+## 27. Baseline Website Smoke Test
+
+### 7 October 2026
+
+The website was tested against the consolidated baseline database:
+
+```text
+shahebbazar_baseline_test
+```
+
+The backend environment was temporarily configured with:
+
+```env
+PGDATABASE=shahebbazar_baseline_test
+```
+
+The consolidated database loaded successfully before testing.
+
+### Database validation
+
+- Baseline schema encoding: PASS
+- Baseline seed encoding: PASS
+- Schema load: PASS
+- Seed load: PASS
+- Automated database verification: PASS
+- Required tables and views: PASS
+- Required review-reply columns: PASS
+- Required NID stub columns: PASS
+- Customer, vendor, and admin role coverage: PASS
+- Public business-card data: PASS
+
+### Baseline data summary
+
+```text
+Businesses:       13
+Listings:         40
+Categories:       42
+Events:            4
+Moderation queue:  3
+```
+
+### Application smoke-test results
+
+- API startup verification: PASS
+- `/api/home`: PASS
+- English homepage: PASS
+- Bangla homepage: PASS
+- English text rendering: PASS
+- Bangla browser rendering: PASS
+- Featured businesses: PASS
+- Business search: PASS
+- Category browsing: PASS
+- Business profile pages: PASS
+- Business listings: PASS
+- Business images and photos: PASS
+- My Account page: PASS
+- Events: PASS
+- Reviews and ratings: PASS
+- Review replies: PASS
+- Saved businesses: NOT TESTED
+- Messaging: NOT TESTED
+- Vendor dashboard: NOT TESTED
+- Admin moderation: NOT TESTED
+- NID stub workflow: NOT TESTED
+- Social links: NOT IMPLEMENTED
+
+### Search testing
+
+Business search was tested against the consolidated baseline.
+
+Results:
+
+- Search page loaded successfully.
+- Search requests completed without HTTP 500 errors.
+- Search results were returned from the baseline database.
+- Category-based discovery operated correctly.
+- No missing table, view, or column errors were observed.
+
+Status: PASS
+
+### Account-page testing
+
+The My Account page was tested against the consolidated baseline.
+
+Results:
+
+- The account page loaded successfully.
+- The account page did not produce a database error.
+- No missing authentication or session database objects were reported.
+- No HTTP 500 error was observed.
+
+Status: PASS
+
+### Business-page testing
+
+Business profile pages were tested against the consolidated baseline.
+
+Results:
+
+- Business profiles loaded successfully.
+- Business details were returned correctly.
+- Listings appeared correctly.
+- Business images and photos appeared correctly.
+- Reviews and ratings appeared correctly.
+- Review replies appeared correctly.
+- English content rendered correctly.
+- Bangla content rendered correctly.
+- No missing business-related database objects were reported.
+
+Status: PASS
+
+### Category testing
+
+Category browsing was tested against the consolidated baseline.
+
+Results:
+
+- Categories loaded successfully.
+- Category names appeared in English.
+- Category names appeared in Bangla.
+- Category navigation operated successfully.
+- No missing category columns or relations were reported.
+
+Status: PASS
+
+### Event testing
+
+Events were tested against the consolidated baseline.
+
+Results:
+
+- Event data loaded successfully.
+- Four seeded events were available.
+- Event content rendered without database errors.
+- No missing event table or column errors were reported.
+
+Status: PASS
+
+### Social links
+
+Vendor social links remain represented in the database schema through:
+
+```text
+vendor_social_links
+```
+
+The current website does not yet implement the social-link user interface.
+
+Status: NOT IMPLEMENTED
+
+This result is not considered a baseline database failure. Social-link functionality should be tested after the relevant frontend or profile-page implementation is completed.
+
+### Language rendering note
+
+The Windows PowerShell terminal displayed Bengali database values incorrectly because of terminal rendering or decoding behaviour.
+
+The website browser rendered the Bangla interface and Bengali database content correctly.
+
+The successful browser result confirms that the consolidated database content is usable by the application.
+
+### Console result
+
+During the website smoke test:
+
+- No required-database-object warning appeared.
+- No missing table error appeared.
+- No missing view error appeared.
+- No missing column error appeared.
+- No database connection error appeared.
+- No homepage HTTP 500 error appeared.
+- No account-page HTTP 500 error appeared.
+- No business-page HTTP 500 error appeared.
+
+### Current consolidation status
+
+The first database consolidation pass is operational.
+
+The consolidated files:
+
+```text
+database/baseline/schema.sql
+database/baseline/seed.sql
+```
+
+can successfully:
+
+1. Create the disposable baseline database.
+2. Populate the baseline database.
+3. Pass automated database verification.
+4. Support the English website.
+5. Support the Bangla website.
+6. Support search.
+7. Support account-page access.
+8. Support business-profile pages.
+9. Support category browsing.
+10. Support event content.
+
+The original development database remains available separately as:
+
+```text
+shahebbazar
+```
+
+The consolidated trial database remains available as:
+
+```text
+shahebbazar_baseline_test
+```
+
+### Remaining consolidation work
+
+Before making the consolidated baseline the default database-loading method:
+
+- Restore and retest the original `shahebbazar` database connection.
+- Build a separate `shahebbazar_legacy_test` database.
+- Run automated verification against the legacy test database.
+- Compare baseline and legacy record counts.
+- Test saved businesses.
+- Test messaging when the relevant authentication flow is available.
+- Test the vendor dashboard.
+- Test admin moderation.
+- Test the mock NID workflow.
+- Implement and test vendor social links.
+- Review the consolidation with the project team.
+- Keep the original versioned SQL files until team review is complete.
+
+### Baseline smoke-test conclusion
+
+The consolidated baseline passed the current database and application smoke tests.
+
+No schema incompatibility was identified during the tested English and Bangla website flows.
+
+The baseline is suitable for continued comparison testing and development, but the original historical SQL files should remain available until the legacy comparison and team review are complete.
+
+## 28. Legacy and Baseline Comparison
+
+### 7 October 2026
+
+A separate legacy test database was created to compare the historical versioned loading process with the new consolidated baseline.
+
+The databases used were:
+
+```text
+shahebbazar_legacy_test
+shahebbazar_baseline_test
+```
+
+The normal development database remained:
+
+```text
+shahebbazar
+```
+
+### Legacy build result
+
+The legacy database was rebuilt using the historical schema and seed sequence:
+
+```text
+schema.v2.sql
+schema.v2.1.sql
+seed.v2.sql
+seed.v2.1.sql
+schema.v2.2.sql
+seed.v2.2.sql
+schema.v2.3.sql
+seed.v2.3.sql
+schema.v2.4.sql
+seed.v2.4.sql
+schema.v2.5.sql
+schema.v2.6.sql
+seed.v2.6.sql
+schema.v2.7.sql
+```
+
+Result:
+
+- Legacy database creation: PASS
+- Historical schema loading: PASS
+- Historical seed loading: PASS
+- Legacy loader summary: PASS
+- Legacy automated verification: PASS
+- Database errors: NONE
+
+The legacy loader completed with:
+
+```text
+Businesses:       13
+Listings:         40
+Categories:       42
+Events:            4
+Moderation queue:  3
+```
+
+### Baseline build result
+
+The consolidated database was rebuilt using:
+
+```text
+database/baseline/schema.sql
+database/baseline/seed.sql
+```
+
+Result:
+
+- Baseline database creation: PASS
+- Consolidated schema loading: PASS
+- Consolidated seed loading: PASS
+- Baseline loader summary: PASS
+- Baseline automated verification: PASS
+- Database errors: NONE
+
+The baseline loader completed with:
+
+```text
+Businesses:       13
+Listings:         40
+Categories:       42
+Events:            4
+Moderation queue:  3
+```
+
+### Core record-count comparison
+
+The following core records were compared directly between the legacy and baseline databases.
+
+| Item | Legacy | Baseline | Result |
+|---|---:|---:|---|
+| Business cards | 13 | 13 | MATCH |
+| Categories | 42 | 42 | MATCH |
+| Events | 4 | 4 | MATCH |
+| Listings | 40 | 40 | MATCH |
+| Moderation queue | 3 | 3 | MATCH |
+| Users | 56 | 56 | MATCH |
+| Vendor photos | 5 | 5 | MATCH |
+| Vendors | 15 | 15 | MATCH |
+
+Overall core record comparison:
+
+```text
+PASS
+```
+
+No count differences were identified across the eight compared database objects.
+
+### Automated verification comparison
+
+Automated verification was run against both test databases.
+
+Results:
+
+```text
+shahebbazar_baseline_test: PASS
+shahebbazar_legacy_test:   PASS
+```
+
+The verification covered:
+
+- Required tables
+- Required views
+- Required review-reply columns
+- Required vendor NID stub columns
+- Customer role coverage
+- Vendor role coverage
+- Administrator role coverage
+- Approved public business-card data
+
+### Application verification
+
+The website was tested against the consolidated baseline database.
+
+Results:
+
+- API startup verification: PASS
+- English homepage: PASS
+- Bangla homepage: PASS
+- English browser rendering: PASS
+- Bangla browser rendering: PASS
+- Featured businesses: PASS
+- Search: PASS
+- Account page: PASS
+- Business pages: PASS
+- Business listings: PASS
+- Business images and photos: PASS
+- Categories: PASS
+- Events: PASS
+- Reviews and ratings: PASS
+- Review replies: PASS
+- Social-link database structure: PRESENT
+- Social-link user interface: NOT IMPLEMENTED
+
+Social links were not treated as a migration failure because the database table is present but the associated website interface has not yet been implemented.
+
+### Search-path correction
+
+During the first baseline trial, the schema loaded successfully but the seed could not resolve the `locations` relation.
+
+The known-good schema snapshot clears the PostgreSQL session search path. The consolidated seed uses unqualified table names.
+
+The following statement was added before the first seed transaction:
+
+```sql
+SET search_path TO public, pg_catalog;
+```
+
+After this correction:
+
+- The baseline schema loaded successfully.
+- The baseline seed loaded successfully.
+- Automated verification passed.
+- The website operated successfully against the baseline database.
+
+### Comparison conclusion
+
+The consolidated baseline reproduces the tested core structure and sample data of the historical loading sequence.
+
+The following checks all passed:
+
+1. Baseline database creation
+2. Legacy database creation
+3. Baseline schema loading
+4. Baseline seed loading
+5. Historical schema and seed loading
+6. Baseline automated verification
+7. Legacy automated verification
+8. Core record-count comparison
+9. English website smoke testing
+10. Bangla website smoke testing
+11. Search testing
+12. Account-page testing
+13. Business-page testing
+14. Category testing
+15. Event testing
+
+No core schema or seeded-record regression was identified during the comparison.
+
+### Migration status
+
+The first database consolidation pass is complete and ready for Git review.
+
+The consolidated baseline is suitable for team review and continued development.
+
+The original versioned SQL files should remain available until the team approves the final cutover and confirms whether legacy loading support should be retained.
+
+The normal development database remains:
+
+```text
+shahebbazar
+```
+
+The disposable comparison databases are:
+
+```text
+shahebbazar_baseline_test
+shahebbazar_legacy_test
+```

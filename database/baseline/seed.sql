@@ -1,6 +1,10 @@
 --consolidatedSeed
 -- Seed data (v2): sample merchants for silk, handicrafts, agro-supplies and light manufacturing.
 
+-- The baseline schema dump clears the session search_path.
+-- Restore the project schema before using unqualified table names.
+SET search_path TO public, pg_catalog;
+
 BEGIN;
 
 -- Locations: country > division > district > city > area.
@@ -869,3 +873,24 @@ SET review_reply = 'Thank you for visiting! We are glad the katan saree was what
 FROM vendors v, users u
 WHERE v.vendor_id = r.vendor_id AND v.vendor_slug = 'shaheb-bazar-silk-house'
   AND u.user_id = r.user_id AND u.user_phone = '+8801722000001';
+
+
+-- Baseline-only replacement for the historical schema.v2.5 data migration.
+-- Run after all seed files so every populated vendor cover is represented once.
+INSERT INTO vendor_photos (
+    vendor_id,
+    vendor_photo_url,
+    vendor_photo_sort
+)
+SELECT
+    v.vendor_id,
+    v.vendor_cover_url,
+    0
+FROM vendors v
+WHERE v.vendor_cover_url IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1
+      FROM vendor_photos vp
+      WHERE vp.vendor_id = v.vendor_id
+        AND vp.vendor_photo_url = v.vendor_cover_url
+  );
