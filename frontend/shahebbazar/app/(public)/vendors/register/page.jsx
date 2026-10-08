@@ -1,125 +1,37 @@
-"use client";
-import { useState } from "react";
+import { Building2 } from "lucide-react";
+import { AppShell } from "@/components/public/AppShell";
+import { VendorRegistrationForm } from "@/components/auth/VendorRegistrationForm";
 
-export default function VendorRegister() {
-    // State to store data input 
-    const [form, setForm] = useState({
-        vendor_name: "",
-        vendor_email: "",
-        vendor_phone: "",
-        vendor_address: "",
-        vendor_city: "",
-        vendor_nid_reference: "",
-    });
-    // status msg - success or error: 
-    const [status, setStatus] = useState(null);
+export const metadata = {
+    title: "Register your business",
+    description:
+        "Create a Shahebbazar business account and submit the business for verification.",
+};
 
-    // handle input change 
-    const handleChange = (e) => {
-        setForm({ ...form, [e.target.name]: e.target.value });
-    };
-
-    // submits form to backend api 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        setStatus(null);
-
-        try {
-            const res = await fetch(
-                "http://localhost:4000/api/vendors",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(form)
-                }
-            );
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                setStatus({
-                    type: "error",
-                    message: data.error || "Unable to register vendor."
-                });
-                return;
-            }
-
-            setStatus({
-                type: "success",
-                message:
-                    "Vendor registered. NID verification is pending."
-            });
-
-            setForm({
-                vendor_name: "",
-                vendor_email: "",
-                vendor_phone: "",
-                vendor_address: "",
-                vendor_city: "",
-                vendor_nid_reference: ""
-            });
-        } catch (err) {
-            console.error("Vendor registration request failed:", err);
-
-            setStatus({
-                type: "error",
-                message: "Unable to contact the registration service."
-            });
-        }
-    };
-    let statusClass = "";
-    if (status?.type === "success") statusClass = "form-status-success";
-    if (status?.type === "error") statusClass = "form-status-error";
-
+export default function VendorRegisterPage() {
     return (
-        <div className="max-w-md mx-auto mt-10">
-            <div className="form-card">
-                <h2 className="form-title">Vendor Registration</h2>
-                {status && (
-                    <div className={statusClass}>
-                        {status.message}
-                    </div>
-                )}
-                <div className="flex flex-col gap-4">
-                    <form onSubmit={handleSubmit}>
-                        <input name="vendor_name" placeholder="Business name (required)" value={form.vendor_name} onChange={handleChange} className="form-input" required/>
-                        <input name="vendor_email" placeholder="Email" value={form.vendor_email} onChange={handleChange} className="form-input" required />
-                        <input name="vendor_phone" placeholder="Phone (required)" value={form.vendor_phone} onChange={handleChange} className="form-input" required />
-                        <input name="vendor_address" placeholder="Address" value={form.vendor_address} onChange={handleChange} className="form-input" required/>
-                        <input name="vendor_city" placeholder="Area, e.g. Kazla" value={form.vendor_city} onChange={handleChange} className="form-input" required/>
-                        <label
-                            htmlFor="vendor_nid_reference"
-                            className="block text-sm font-medium"
-                        >
-                            National ID reference
-                        </label>
+        <AppShell locale="en" current="add-business">
+            <div className="mx-auto w-full max-w-3xl py-6 sm:py-10">
+                <header className="text-center">
+                    <span className="mx-auto grid size-12 place-items-center rounded-xl bg-brand-50 text-brand-600">
+                        <Building2 className="size-6" />
+                    </span>
 
-                        <input
-                            id="vendor_nid_reference"
-                            name="vendor_nid_reference"
-                            type="text"
-                            placeholder="National ID reference (required)"
-                            value={form.vendor_nid_reference}
-                            onChange={handleChange}
-                            className="form-input"
-                            autoComplete="off"
-                            required
-                        />
+                    <h1 className="mt-4 text-3xl font-bold text-ink">
+                        Register your business
+                    </h1>
 
-                        <p className="mb-4 text-sm text-gray-500">
-                            The NID reference will be submitted for verification. New vendor
-                            registrations remain pending until reviewed.
-                        </p>
-                        <button type="submit" className="form-button-primary">
-                            Register Vendor
-                        </button>
-                    </form>
+                    <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted">
+                        Create a business account for Shahebbazar.
+                        New registrations remain pending until the
+                        business and NID reference are reviewed.
+                    </p>
+                </header>
+
+                <div className="mt-8">
+                    <VendorRegistrationForm />
                 </div>
-
             </div>
-        </div>
+        </AppShell>
     );
 }
