@@ -36,6 +36,16 @@ type VerifyCodeResult =
         ok: false;
         error: string;
     };
+    
+    type RegisterCustomerResult =
+    | {
+          ok: true;
+          user: AuthUser;
+      }
+    | {
+          ok: false;
+          error: string;
+      };
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
     return response
@@ -151,6 +161,71 @@ export async function verifyCode(input: {
         return {
             ok: false,
             error: "Unable to contact the authentication service.",
+        };
+    }
+}
+
+export async function registerCustomer(input: {
+    name: string;
+    phone: string;
+    email: string;
+    code: string;
+}): Promise<RegisterCustomerResult> {
+    try {
+        const response = await fetch(
+            `${AUTH_API_BASE}/api/auth/register/customer`,
+            {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    name: input.name,
+                    phone: input.phone,
+                    email: input.email || null,
+                    code: input.code,
+                }),
+            }
+        );
+
+        const body = await readJson(response);
+
+        if (!response.ok) {
+            return {
+                ok: false,
+                error: errorFrom(
+                    body,
+                    "Unable to create the customer account."
+                ),
+            };
+        }
+
+        const user = body.user as AuthUser | undefined;
+
+        if (!user) {
+            return {
+                ok: false,
+                error:
+                    "The server did not return the new customer account.",
+            };
+        }
+
+        return {
+            ok: true,
+            user,
+        };
+    } catch (error) {
+        console.error(
+            "Customer registration failed:",
+            error
+        );
+
+        return {
+            ok: false,
+            error:
+                "Unable to contact the registration service.",
         };
     }
 }

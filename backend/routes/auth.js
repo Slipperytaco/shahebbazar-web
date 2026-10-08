@@ -447,4 +447,279 @@ router.post("/verify", async (req, res) => {
     }
 });
 
+router.post("/register/customer", async (req, res) => {
+    const name =
+        typeof req.body?.name === "string"
+            ? req.body.name.trim()
+            : "";
+
+    const phone = normalisePhone(req.body?.phone);
+
+    const email =
+        typeof req.body?.email === "string" &&
+        req.body.email.trim()
+            ? req.body.email.trim().toLowerCase()
+            : null;
+
+    const code =
+        typeof req.body?.code === "string"
+            ? req.body.code.trim()
+            : "";
+
+    if (!name) {
+        return res.status(400).json({
+            success: false,
+            error: "Enter your full name.",
+        });
+    }
+
+    if (name.length > 120) {
+        return res.status(400).json({
+            success: false,
+            error: "The name is too long.",
+        });
+    }
+
+    if (!phone) {
+        return res.status(400).json({
+            success: false,
+            error: "Enter a valid phone number.",
+        });
+    }
+
+    if (
+        email &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+        return res.status(400).json({
+            success: false,
+            error: "Enter a valid email address.",
+        });
+    }
+
+    if (!/^\d{6}$/.test(code)) {
+        return res.status(400).json({
+            success: false,
+            error: "Enter the six-digit verification code.",
+        });
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const existingUserResult = await client.query(
+            `SELECT
+                user_id,
+                user_phone,
+                user_email
+             FROM users
+             WHERE user_phone = $1
+                OR ($2::text IS NOT NULL AND user_email = $2)
+             LIMIT 1`,
+            [phone, email]
+        );
+
+        if (existingUserResult.rowCount > 0) {
+            const existingUser =
+                existingUserResult.rows[0];
+
+            await client.query("ROLLBACK");
+
+            return res.status(409).json({
+                success: false,
+                error:
+                    existingUser.user_phone === phone
+                        ? "That phone number is already registered."
+                        : "That email address is already registered.",
+            });
+        }
+
+        const otpResult = await client.query(
+            `SELECT
+                otp_id,
+                otp_code_hash,
+                otp_attempts,
+                otp_expires_at,
+                otp_consumed_at
+             FROM otp_codes
+             WHERE otp_phone = $1
+               AND otp_purpose = 'register'
+             ORDER BY otp_created_at DESC
+             LIMIT 1
+             FOR UPDATE`,
+            [phone]
+        );
+
+        if (otpResult.rowCount === 0) {
+            await client.query("ROLLBACK");
+
+            return res.status(401).json({
+                success: false,
+                error:
+                    "The verification code is invalid or has expired.",
+            });
+        }
+
+        const otp = otpResult.rows[0];
+
+        const expired =
+            new Date(otp.otp_expires_at).getTime() <=
+            Date.now();
+
+        const unavailable =
+            otp.otp_consumed_at !== null ||
+            expired ||
+            otp.otp_attempts >= OTP_ATTEMPT_LIMIT;
+
+        if (unavailable) {
+            await client.query("ROLLBACK");
+
+            return res.status(401).json({
+                success: false,
+                error:
+                    "The verification code is invalid or has expired.",
+            });
+        }
+
+        const submittedHash = hashVerificationCode({
+            phone,
+            purpose: "register",
+            code,
+        });
+
+        if (
+            !hashesMatch(
+                submittedHash,
+                otp.otp_code_hash
+            )
+        ) {
+            await client.query(
+                `UPDATE otp_codes
+                 SET
+                    otp_attempts = otp_attempts + 1,
+                    otp_consumed_at =
+                        CASE
+                            WHEN otp_attempts + 1 >= $2
+                            THEN NOW()
+                            ELSE otp_consumed_at
+                        END
+                 WHERE otp_id = $1`,
+                [otp.otp_id, OTP_ATTEMPT_LIMIT]
+            );
+
+            await client.query("COMMIT");
+
+            return res.status(401).json({
+                success: false,
+                error:
+                    "The verification code is invalid or has expired.",
+            });
+        }
+
+        const userResult = await client.query(
+            `INSERT INTO users (
+                user_name,
+                user_phone,
+                user_email,
+                user_role,
+                user_phone_verified_at
+             )
+             VALUES (
+                $1,
+                $2,
+                $3,
+                'customer',
+                NOW()
+             )
+             RETURNING
+                user_id,
+                user_name,
+                user_phone,
+                user_email,
+                user_role`,
+            [name, phone, email]
+        );
+
+        const user = userResult.rows[0];
+
+        await client.query(
+            `UPDATE otp_codes
+             SET
+                otp_consumed_at = NOW(),
+                otp_attempts = otp_attempts + 1
+             WHERE otp_id = $1`,
+            [otp.otp_id]
+        );
+
+        const sessionToken = crypto
+            .randomBytes(32)
+            .toString("base64url");
+
+        const sessionTokenHash =
+            hashSessionToken(sessionToken);
+
+        await client.query(
+            `INSERT INTO sessions (
+                user_id,
+                session_token_hash,
+                session_expires_at,
+                session_user_agent,
+                session_ip
+             )
+             VALUES (
+                $1,
+                $2,
+                NOW() + ($3 * INTERVAL '1 day'),
+                $4,
+                $5
+             )`,
+            [
+                user.user_id,
+                sessionTokenHash,
+                SESSION_DURATION_DAYS,
+                req.get("user-agent") || null,
+                req.ip || null,
+            ]
+        );
+
+        await client.query("COMMIT");
+
+        res.cookie(
+            SESSION_COOKIE_NAME,
+            sessionToken,
+            sessionCookieOptions()
+        );
+
+        return res.status(201).json({
+            success: true,
+            user,
+        });
+    } catch (error) {
+        await client.query("ROLLBACK");
+
+        if (error.code === "23505") {
+            return res.status(409).json({
+                success: false,
+                error:
+                    "That phone number or email address is already registered.",
+            });
+        }
+
+        console.error(
+            "POST /api/auth/register/customer failed:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            error:
+                "Unable to create the customer account.",
+        });
+    } finally {
+        client.release();
+    }
+});
+
 module.exports = router;

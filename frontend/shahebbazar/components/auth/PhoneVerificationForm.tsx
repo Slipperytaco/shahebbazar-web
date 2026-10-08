@@ -75,7 +75,7 @@ export function PhoneVerificationForm({
     const [stage, setStage] = useState<Stage>("phone");
     const [phone, setPhone] = useState("");
     const [code, setCode] = useState("");
-    const [message, setMessage] = useState<string | null>(null);
+    //const [message, setMessage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
@@ -86,7 +86,7 @@ export function PhoneVerificationForm({
 
         setBusy(true);
         setError(null);
-        setMessage(null);
+        //setMessage(null);
 
         const result = await requestVerification({
             phone,
@@ -100,7 +100,7 @@ export function PhoneVerificationForm({
             return;
         }
 
-        setMessage(null);
+        //setMessage(null);
         setStage("code");
     }
 
@@ -142,7 +142,7 @@ export function PhoneVerificationForm({
         setStage("phone");
         setCode("");
         setError(null);
-        setMessage(null);
+        //setMessage(null);
     }
 
     if (stage === "phone") {
@@ -288,9 +288,8 @@ function RegistrationPrompt({
         : text.vendorRegisterLink;
 
     const href = isCustomer
-        ? localeHref("/register", locale)
+        ? localeHref("/register/customer", locale)
         : localeHref("/vendors/register", locale);
-
     return (
         <p className="text-center text-sm text-muted">
             {prompt}{" "}
