@@ -1,41 +1,53 @@
 const express = require("express");
 const pool = require("../db");
-const { currentCustomerId, parseId, cleanText } = require("../lib/currentUser");
+const {
+    parseId,
+    cleanText,
+} = require("../lib/currentUser");
+
+const {
+    requireAuthenticatedUser,
+    requireRole,
+} = require("../lib/middleware/auth");
 
 const router = express.Router();
 const REVIEW_MAX = 2000;
 const REPLY_MAX = 1000;
 
-router.post("/businesses/:slug/reviews", async (req, res) => {
-    const rating = Number(req.body?.rating);
-    const body = cleanText(req.body?.body) || null;
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-        return res.status(400).json({ error: "Choose a rating from 1 to 5 stars." });
-    }
-    if (body && body.length > REVIEW_MAX) {
-        return res.status(400).json({ error: `Keep the review under ${REVIEW_MAX} characters.` });
-    }
-
-    try {
-        const userId = await currentCustomerId();
-        if (!userId) return res.status(500).json({ error: "No customer account exists to review from." });
-        const vendor = await pool.query(
-            "SELECT vendor_id, user_id FROM vendors WHERE vendor_slug = $1 AND vendor_status = 'approved'",
-            [req.params.slug]
-        );
-        if (vendor.rowCount === 0) return res.status(404).json({ error: "Business not found" });
-        if (vendor.rows[0].user_id === userId) return res.status(403).json({ error: "You cannot review your own business." });
-
-        const existing = await pool.query(
-            "SELECT review_status FROM reviews WHERE vendor_id = $1 AND user_id = $2",
-            [vendor.rows[0].vendor_id, userId]
-        );
-        if (["hidden", "removed"].includes(existing.rows[0]?.review_status)) {
-            return res.status(409).json({ error: "Your review was taken down by a moderator and cannot be edited." });
+router.post(
+    "/businesses/:slug/reviews",
+    requireAuthenticatedUser,
+    requireRole("customer"),
+    async (req, res) => {
+        const rating = Number(req.body?.rating);
+        const body = cleanText(req.body?.body) || null;
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+            return res.status(400).json({ error: "Choose a rating from 1 to 5 stars." });
+        }
+        if (body && body.length > REVIEW_MAX) {
+            return res.status(400).json({ error: `Keep the review under ${REVIEW_MAX} characters.` });
         }
 
-        const result = await pool.query(
-            `INSERT INTO reviews (vendor_id, user_id, review_rating, review_body, review_status)
+        try {
+            const userId = req.user.user_id;
+            //if (!userId) return res.status(500).json({ error: "No customer account exists to review from." });
+            const vendor = await pool.query(
+                "SELECT vendor_id, user_id FROM vendors WHERE vendor_slug = $1 AND vendor_status = 'approved'",
+                [req.params.slug]
+            );
+            if (vendor.rowCount === 0) return res.status(404).json({ error: "Business not found" });
+            if (vendor.rows[0].user_id === userId) return res.status(403).json({ error: "You cannot review your own business." });
+
+            const existing = await pool.query(
+                "SELECT review_status FROM reviews WHERE vendor_id = $1 AND user_id = $2",
+                [vendor.rows[0].vendor_id, userId]
+            );
+            if (["hidden", "removed"].includes(existing.rows[0]?.review_status)) {
+                return res.status(409).json({ error: "Your review was taken down by a moderator and cannot be edited." });
+            }
+
+            const result = await pool.query(
+                `INSERT INTO reviews (vendor_id, user_id, review_rating, review_body, review_status)
              VALUES ($1, $2, $3, $4, 'published')
              ON CONFLICT (vendor_id, user_id) DO UPDATE
                  SET review_rating = EXCLUDED.review_rating,
@@ -43,14 +55,15 @@ router.post("/businesses/:slug/reviews", async (req, res) => {
                      review_status = 'published',
                      review_created_at = NOW()
              RETURNING review_id, review_rating AS rating, review_body AS body, review_status AS status`,
-            [vendor.rows[0].vendor_id, userId, rating, body]
-        );
-        res.status(existing.rowCount ? 200 : 201).json(result.rows[0]);
-    } catch (err) {
-        console.error(`POST /api/businesses/${req.params.slug}/reviews failed:`, err);
-        res.status(500).json({ error: "Could not save your review. Try again." });
+                [vendor.rows[0].vendor_id, userId, rating, body]
+            );
+            res.status(existing.rowCount ? 200 : 201).json(result.rows[0]);
+        } catch (err) {
+            console.error(`POST /api/businesses/${req.params.slug}/reviews failed:`, err);
+            res.status(500).json({ error: "Could not save your review. Try again." });
+        }
     }
-});
+);
 
 router.get("/vendors/:vendorId/reviews", async (req, res) => {
     const vendorId = parseId(req.params.vendorId);

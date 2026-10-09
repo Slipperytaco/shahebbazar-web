@@ -1,6 +1,7 @@
 const express = require("express");
 const pool = require("../db");
-const { currentCustomerId, currentAdminId, parseId, cleanText } = require("../lib/currentUser");
+const { currentAdminId, parseId, cleanText, } = require("../lib/currentUser"); 
+const { requireAuthenticatedUser, requireRole, } = require("../lib/middleware/auth");
 
 const router = express.Router();
 
@@ -26,7 +27,10 @@ function audit(db, actor, action, type, id, before, after) {
     );
 }
 
-router.post("/reports", async (req, res) => {
+router.post( "/reports", 
+    requireAuthenticatedUser, 
+    requireRole("customer"), 
+    async (req, res) => {
     const type = req.body?.target_type;
     const targetId = parseId(req.body?.target_id);
     const reason = req.body?.reason;
@@ -38,7 +42,7 @@ router.post("/reports", async (req, res) => {
     }
 
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         const target = await pool.query(TARGET_EXISTS[type], [targetId]);
         if (target.rowCount === 0) return res.status(404).json({ error: "That item no longer exists." });
         const duplicate = await pool.query(
@@ -58,7 +62,8 @@ router.post("/reports", async (req, res) => {
         console.error("POST /api/reports failed:", err);
         res.status(500).json({ error: "Could not send the report. Try again." });
     }
-});
+    }
+);
 
 router.get("/admin/reports", async (req, res) => {
     try {

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { AccountShell } from "@/components/customer/AccountShell";
 import { ThreadView } from "@/components/messaging/ThreadView";
-import { apiGet } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
 import type { ConversationThread } from "@/lib/types";
 import { replyAsCustomer } from "../../../actions";
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 export default async function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     if (!/^\d{1,10}$/.test(id)) notFound();
-    const thread = await apiGet<ConversationThread>(`/me/conversations/${id}`);
+    const thread = await authenticatedApiGet<ConversationThread>(`/me/conversations/${id}`);
     if (!thread) notFound();
 
     return (

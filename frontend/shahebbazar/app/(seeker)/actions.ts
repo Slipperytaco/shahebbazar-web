@@ -27,10 +27,34 @@ export async function setSaved(vendorId: number, saved: boolean): Promise<Authen
     return result;
 }
 
-// Posts or updates the customer's review, then refreshes cached ratings.
-export async function postReview(slug: string, rating: number, body: string): Promise<AuthenticatedSendResult> {
-    const result = await authenticatedApiSend("POST", `/businesses/${encodeURIComponent(slug)}/reviews`, { rating, body });
-    if (result.ok) revalidatePath("/", "layout");
+// Posts or updates the customer's review
+export async function postReview(
+    slug: string,
+    rating: number,
+    body: string
+): Promise<AuthenticatedSendResult> {
+    const result = await authenticatedApiSend(
+        "POST",
+        `/businesses/${encodeURIComponent(
+            slug
+        )}/reviews`,
+        {
+            rating,
+            body,
+        }
+    );
+
+    if (result.ok) {
+        revalidatePath(
+            `/business/${encodeURIComponent(
+                slug
+            )}`
+        );
+
+        revalidatePath("/account/reviews");
+        revalidatePath("/account");
+    }
+
     return result;
 }
 
