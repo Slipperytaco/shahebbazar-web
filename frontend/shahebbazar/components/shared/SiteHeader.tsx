@@ -92,7 +92,7 @@ export function SiteHeader({ locale, current }: { locale: Locale; current?: stri
                         {copy.logIn}
                     </Link>
                     <Link
-                        href={localeHref("/vendors/register", locale)}
+                        href={localeHref("/register", locale)}
                         className="inline-flex items-center justify-center rounded-[10px] bg-brand-600 px-3 py-2.5 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-brand-700 max-[359px]:hidden sm:px-[1.125rem]"
                     >
                         {copy.register}
