@@ -16,7 +16,54 @@ export type AuthUser = {
     user_email: string | null;
     user_role: AuthRole;
 };
+export type LogoutResult =
+    | {
+          ok: true;
+      }
+    | {
+          ok: false;
+          error: string;
+      };
 
+export async function logout(): Promise<LogoutResult> {
+    try {
+        const response = await fetch(
+            `${AUTH_API_BASE}/api/auth/logout`,
+            {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    Accept: "application/json",
+                },
+            }
+        );
+
+        const body = await response
+            .json()
+            .catch(() => null);
+
+        if (!response.ok) {
+            return {
+                ok: false,
+                error:
+                    body?.error ??
+                    `Logout failed (${response.status})`,
+            };
+        }
+
+        return {
+            ok: true,
+        };
+    } catch (error) {
+        console.error("Logout failed:", error);
+
+        return {
+            ok: false,
+            error:
+                "Could not reach the server. Try again.",
+        };
+    }
+}
 type RequestVerificationResult =
     | {
         ok: true;
@@ -65,7 +112,7 @@ function errorFrom(
 export async function requestVerification(input: {
     phone: string;
     purpose: VerificationPurpose;
-    expectedRole?: "customer" | "vendor";
+    expectedRole?: AuthRole;
 }): Promise<RequestVerificationResult> {
     try {
         const response = await fetch(
@@ -114,7 +161,7 @@ export async function verifyCode(input: {
     phone: string;
     purpose: VerificationPurpose;
     code: string;
-    expectedRole?: "customer" | "vendor";
+    expectedRole?: AuthRole;
 }): Promise<VerifyCodeResult> {
     try {
         const response = await fetch(

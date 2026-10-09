@@ -5,6 +5,7 @@ const { normalisePhone } = require("../lib/phone");
 const {
     SESSION_COOKIE_NAME,
     hashSessionToken,
+    requireAuthenticatedUser,
 } = require("../lib/middleware/auth");
 
 const router = express.Router();
@@ -20,6 +21,7 @@ const ALLOWED_PURPOSES = new Set([
 const LOGIN_ROLES = new Set([
     "customer",
     "vendor",
+    "admin",
 ]);
 
 const OTP_EXPIRY_MINUTES = 5;
@@ -217,7 +219,7 @@ router.post("/request-verification", async (req, res) => {
         if (
             process.env.NODE_ENV !== "production" &&
             process.env.MOCK_VERIFICATION_DELIVERY ===
-                "console"
+            "console"
         ) {
             console.log("");
             console.log(
@@ -799,5 +801,45 @@ router.post("/register/customer", async (req, res) => {
         client.release();
     }
 });
+router.post(
+    "/logout",
+    requireAuthenticatedUser,
+    async (req, res) => {
+        try {
+            if (req.session?.session_id) {
+                await pool.query(
+                    `DELETE FROM sessions
+                     WHERE session_id = $1`,
+                    [req.session.session_id]
+                );
+            }
 
+            res.clearCookie(
+                SESSION_COOKIE_NAME,
+                {
+                    httpOnly: true,
+                    secure:
+                        process.env.NODE_ENV ===
+                        "production",
+                    sameSite: "lax",
+                    path: "/",
+                }
+            );
+
+            return res.json({
+                success: true,
+            });
+        } catch (error) {
+            console.error(
+                "POST /api/auth/logout failed:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                error: "Unable to log out.",
+            });
+        }
+    }
+);
 module.exports = router;

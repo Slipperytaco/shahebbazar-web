@@ -9,9 +9,14 @@ import {
 } from "@/lib/auth-client";
 import { localeHref, type Locale } from "@/lib/i18n";
 
+type LoginAudience =
+    | "customer"
+    | "vendor"
+    | "admin";
+
 type PhoneVerificationFormProps = {
     locale: Locale;
-    audience: "customer" | "vendor";
+    audience: LoginAudience;
 };
 
 type Stage = "phone" | "code";
@@ -136,8 +141,9 @@ export function PhoneVerificationForm({
         const destination =
             destinationByRole[result.user.user_role];
 
-        router.push(localeHref(destination, locale));
-        router.refresh();
+        router.replace(
+            localeHref(destination, locale)
+        );
     }
 
     function resetPhoneStage() {
@@ -195,11 +201,13 @@ export function PhoneVerificationForm({
                     {busy ? text.requesting : text.sendCode}
                 </button>
 
-                <RegistrationPrompt
-                    locale={locale}
-                    audience={audience}
-                    text={text}
-                />
+                {audience !== "admin" && (
+                    <RegistrationPrompt
+                        locale={locale}
+                        audience={audience}
+                        text={text}
+                    />
+                )}
             </form>
         );
     }
