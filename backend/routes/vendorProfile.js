@@ -5,7 +5,11 @@ const express = require("express");
 const multer = require("multer");
 const pool = require("../db");
 const { LIMITS, validateProfile } = require("../lib/businessProfile");
-
+const {
+    requireAuthenticatedUser,
+    requireRole,
+    requireVendorOwnership,
+} = require("../lib/middleware/auth");
 const router = express.Router();
 
 // Add / Edit Business: the provider's own profile.
@@ -113,19 +117,28 @@ async function loadOptions() {
     return { categories: categories.rows, areas: areas.rows };
 }
 
-router.get("/vendors/:vendorId/profile", async (req, res) => {
-    const vendorId = parseId(req.params.vendorId);
-    if (vendorId === null) return res.status(400).json({ error: "Invalid vendor id" });
+router.get(
+    "/vendors/:vendorId/profile",
+    requireAuthenticatedUser,
+    requireRole("vendor", "admin"),
+    requireVendorOwnership,
+    async (req, res) => {
+        const vendorId =
+            req.user.user_role === "admin"
+                ? parseId(req.params.vendorId)
+                : req.vendor.vendor_id;
+        if (vendorId === null) return res.status(400).json({ error: "Invalid vendor id" });
 
-    try {
-        const [profile, options] = await Promise.all([loadProfile(pool, vendorId), loadOptions()]);
-        if (!profile) return res.status(404).json({ error: "Vendor not found" });
-        res.json({ ...profile, options, limits: LIMITS });
-    } catch (err) {
-        console.error(`GET /api/vendors/${vendorId}/profile failed:`, err);
-        res.status(500).json({ error: "Could not load the business" });
+        try {
+            const [profile, options] = await Promise.all([loadProfile(pool, vendorId), loadOptions()]);
+            if (!profile) return res.status(404).json({ error: "Vendor not found" });
+            res.json({ ...profile, options, limits: LIMITS });
+        } catch (err) {
+            console.error(`GET /api/vendors/${vendorId}/profile failed:`, err);
+            res.status(500).json({ error: "Could not load the business" });
+        }
     }
-});
+);
 
 // Saving
 
@@ -142,56 +155,64 @@ async function syncCover(db, vendorId) {
 }
 
 // PUT /api/vendors/:id/profile: saves the form; 400 carries field errors, 409 means the business is suspended.
-router.put("/vendors/:vendorId/profile", async (req, res) => {
-    const vendorId = parseId(req.params.vendorId);
-    if (vendorId === null) return res.status(400).json({ error: "Invalid vendor id" });
+router.put(
+    "/vendors/:vendorId/profile",
+    requireAuthenticatedUser,
+    requireRole("vendor", "admin"),
+    requireVendorOwnership,
+    async (req, res) => {
+        const vendorId =
+            req.user.user_role === "admin"
+                ? parseId(req.params.vendorId)
+                : req.vendor.vendor_id;
+        if (vendorId === null) return res.status(400).json({ error: "Invalid vendor id" });
 
-    const { errors, value } = validateProfile(req.body);
+        const { errors, value } = validateProfile(req.body);
 
-    const client = await pool.connect();
-    try {
-        // Checks that need the database.
-        if (value.categoryIds.length > 0) {
-            const found = await client.query(
-                `SELECT COUNT(*)::int AS n FROM categories
+        const client = await pool.connect();
+        try {
+            // Checks that need the database.
+            if (value.categoryIds.length > 0) {
+                const found = await client.query(
+                    `SELECT COUNT(*)::int AS n FROM categories
                  WHERE category_id = ANY($1::int[]) AND category_is_active`,
-                [value.categoryIds]
+                    [value.categoryIds]
+                );
+                if (found.rows[0].n !== value.categoryIds.length) errors.category_ids = "Choose categories from the list.";
+            }
+            if (value.locationId !== null) {
+                const area = await client.query(
+                    `SELECT 1 FROM locations WHERE location_id = $1 AND location_type = 'area'`,
+                    [value.locationId]
+                );
+                if (area.rowCount === 0) errors.location_id = "Choose an area from the list.";
+            }
+
+            if (Object.keys(errors).length > 0) {
+                return res.status(400).json({ error: "Some fields need attention.", errors });
+            }
+
+            await client.query("BEGIN");
+
+            // FOR UPDATE: two saves of the same business run one after the other.
+            const current = await client.query(
+                "SELECT vendor_status FROM vendors WHERE vendor_id = $1 FOR UPDATE",
+                [vendorId]
             );
-            if (found.rows[0].n !== value.categoryIds.length) errors.category_ids = "Choose categories from the list.";
-        }
-        if (value.locationId !== null) {
-            const area = await client.query(
-                `SELECT 1 FROM locations WHERE location_id = $1 AND location_type = 'area'`,
-                [value.locationId]
-            );
-            if (area.rowCount === 0) errors.location_id = "Choose an area from the list.";
-        }
+            if (current.rowCount === 0) {
+                await client.query("ROLLBACK");
+                return res.status(404).json({ error: "Vendor not found" });
+            }
+            const status = current.rows[0].vendor_status;
+            if (status === "suspended") {
+                await client.query("ROLLBACK");
+                return res.status(409).json({ error: "This business is suspended and cannot be edited. Contact support." });
+            }
 
-        if (Object.keys(errors).length > 0) {
-            return res.status(400).json({ error: "Some fields need attention.", errors });
-        }
+            const submitting = value.submit && (status === "draft" || status === "rejected");
 
-        await client.query("BEGIN");
-
-        // FOR UPDATE: two saves of the same business run one after the other.
-        const current = await client.query(
-            "SELECT vendor_status FROM vendors WHERE vendor_id = $1 FOR UPDATE",
-            [vendorId]
-        );
-        if (current.rowCount === 0) {
-            await client.query("ROLLBACK");
-            return res.status(404).json({ error: "Vendor not found" });
-        }
-        const status = current.rows[0].vendor_status;
-        if (status === "suspended") {
-            await client.query("ROLLBACK");
-            return res.status(409).json({ error: "This business is suspended and cannot be edited. Contact support." });
-        }
-
-        const submitting = value.submit && (status === "draft" || status === "rejected");
-
-        await client.query(
-            `UPDATE vendors SET
+            await client.query(
+                `UPDATE vendors SET
                  vendor_name = $2, vendor_name_bn = $3, location_id = $4, vendor_address = $5,
                  vendor_phone = $6, vendor_whatsapp = $7, vendor_description = $8,
                  vendor_email = $9, vendor_website = $10,
@@ -199,58 +220,58 @@ router.put("/vendors/:vendorId/profile", async (req, res) => {
                  vendor_rejection_reason = CASE WHEN $11 THEN NULL ELSE vendor_rejection_reason END,
                  vendor_updated_at = NOW()
              WHERE vendor_id = $1`,
-            [
-                vendorId, value.name, value.nameBn, value.locationId, value.address,
-                value.phone, value.whatsapp, value.description, value.email, value.website,
-                submitting,
-            ]
-        );
+                [
+                    vendorId, value.name, value.nameBn, value.locationId, value.address,
+                    value.phone, value.whatsapp, value.description, value.email, value.website,
+                    submitting,
+                ]
+            );
 
-        await client.query("DELETE FROM vendor_categories WHERE vendor_id = $1", [vendorId]);
-        await client.query(
-            `INSERT INTO vendor_categories (vendor_id, category_id)
-             SELECT $1, unnest($2::int[])`,
-            [vendorId, value.categoryIds]
-        );
-
-        // Hours: days left unset have no row, which the site shows as "hours not listed" rather than closed.
-        await client.query("DELETE FROM vendor_opening_hours WHERE vendor_id = $1", [vendorId]);
-        for (const h of value.hours) {
+            await client.query("DELETE FROM vendor_categories WHERE vendor_id = $1", [vendorId]);
             await client.query(
-                `INSERT INTO vendor_opening_hours
+                `INSERT INTO vendor_categories (vendor_id, category_id)
+             SELECT $1, unnest($2::int[])`,
+                [vendorId, value.categoryIds]
+            );
+
+            // Hours: days left unset have no row, which the site shows as "hours not listed" rather than closed.
+            await client.query("DELETE FROM vendor_opening_hours WHERE vendor_id = $1", [vendorId]);
+            for (const h of value.hours) {
+                await client.query(
+                    `INSERT INTO vendor_opening_hours
                      (vendor_id, hours_day_of_week, hours_open_time, hours_close_time,
                       hours_is_closed, hours_is_24h)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
-                [vendorId, h.day, h.open, h.close, h.mode === "closed", h.mode === "24h"]
-            );
-        }
+                    [vendorId, h.day, h.open, h.close, h.mode === "closed", h.mode === "24h"]
+                );
+            }
 
-        // Facts: an icon chosen in the seed data is kept when the same label is saved again in the same place.
-        const oldIcons = await client.query(
-            "SELECT fact_group, lower(fact_label) AS label, fact_icon FROM vendor_facts WHERE vendor_id = $1",
-            [vendorId]
-        );
-        const iconOf = new Map(oldIcons.rows.map((r) => [`${r.fact_group}|${r.label}`, r.fact_icon]));
-        await client.query("DELETE FROM vendor_facts WHERE vendor_id = $1", [vendorId]);
-        for (const [i, f] of value.facts.entries()) {
-            await client.query(
-                `INSERT INTO vendor_facts (vendor_id, fact_group, fact_label, fact_value, fact_icon, fact_sort_order)
+            // Facts: an icon chosen in the seed data is kept when the same label is saved again in the same place.
+            const oldIcons = await client.query(
+                "SELECT fact_group, lower(fact_label) AS label, fact_icon FROM vendor_facts WHERE vendor_id = $1",
+                [vendorId]
+            );
+            const iconOf = new Map(oldIcons.rows.map((r) => [`${r.fact_group}|${r.label}`, r.fact_icon]));
+            await client.query("DELETE FROM vendor_facts WHERE vendor_id = $1", [vendorId]);
+            for (const [i, f] of value.facts.entries()) {
+                await client.query(
+                    `INSERT INTO vendor_facts (vendor_id, fact_group, fact_label, fact_value, fact_icon, fact_sort_order)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
-                [vendorId, f.group, f.label, f.value, iconOf.get(`${f.group}|${f.label.toLowerCase()}`) ?? null, i]
-            );
-        }
+                    [vendorId, f.group, f.label, f.value, iconOf.get(`${f.group}|${f.label.toLowerCase()}`) ?? null, i]
+                );
+            }
 
-        await client.query("DELETE FROM vendor_social_links WHERE vendor_id = $1", [vendorId]);
-        for (const s of value.social) {
+            await client.query("DELETE FROM vendor_social_links WHERE vendor_id = $1", [vendorId]);
+            for (const s of value.social) {
+                await client.query(
+                    "INSERT INTO vendor_social_links (vendor_id, social_platform, social_url) VALUES ($1, $2, $3)",
+                    [vendorId, s.platform, s.url]
+                );
+            }
+
+            // Photo order: renumbered 0..n-1 on every save.
             await client.query(
-                "INSERT INTO vendor_social_links (vendor_id, social_platform, social_url) VALUES ($1, $2, $3)",
-                [vendorId, s.platform, s.url]
-            );
-        }
-
-        // Photo order: renumbered 0..n-1 on every save.
-        await client.query(
-            `WITH ranked AS (
+                `WITH ranked AS (
                  SELECT p.vendor_photo_id,
                         ROW_NUMBER() OVER (ORDER BY o.ord NULLS LAST, p.vendor_photo_sort, p.vendor_photo_id) - 1 AS rn
                  FROM vendor_photos p
@@ -259,22 +280,23 @@ router.put("/vendors/:vendorId/profile", async (req, res) => {
              )
              UPDATE vendor_photos p SET vendor_photo_sort = r.rn
              FROM ranked r WHERE p.vendor_photo_id = r.vendor_photo_id`,
-            [vendorId, value.photoOrder]
-        );
-        await syncCover(client, vendorId);
+                [vendorId, value.photoOrder]
+            );
+            await syncCover(client, vendorId);
 
-        await client.query("COMMIT");
+            await client.query("COMMIT");
 
-        const saved = await loadProfile(pool, vendorId);
-        res.json(saved);
-    } catch (err) {
-        await client.query("ROLLBACK").catch(() => {});
-        console.error(`PUT /api/vendors/${vendorId}/profile failed:`, err);
-        res.status(500).json({ error: "Could not save the business. Nothing was changed." });
-    } finally {
-        client.release();
+            const saved = await loadProfile(pool, vendorId);
+            res.json(saved);
+        } catch (err) {
+            await client.query("ROLLBACK").catch(() => { });
+            console.error(`PUT /api/vendors/${vendorId}/profile failed:`, err);
+            res.status(500).json({ error: "Could not save the business. Nothing was changed." });
+        } finally {
+            client.release();
+        }
     }
-});
+);
 
 // Images
 
@@ -310,10 +332,10 @@ function receive(middleware, limitLabel) {
                 err.code === "LIMIT_FILE_SIZE"
                     ? `Each image must be ${limitLabel} or smaller.`
                     : err.code === "LIMIT_FILE_COUNT" || (err.code === "LIMIT_UNEXPECTED_FILE" && err.field !== "type")
-                      ? "Too many files, or the wrong form field."
-                      : err.field === "type"
-                        ? "Only JPG, PNG or WEBP images can be uploaded."
-                        : "The upload could not be read.";
+                        ? "Too many files, or the wrong form field."
+                        : err.field === "type"
+                            ? "Only JPG, PNG or WEBP images can be uploaded."
+                            : "The upload could not be read.";
             // multer removes partial files on its own errors.
             res.status(400).json({ error: message });
         });
@@ -337,7 +359,7 @@ async function hasImageSignature(file) {
 }
 
 async function discard(files) {
-    await Promise.all((files ?? []).map((f) => fs.unlink(f.path).catch(() => {})));
+    await Promise.all((files ?? []).map((f) => fs.unlink(f.path).catch(() => { })));
 }
 
 /** Path as stored in the database and served by express.static. */
@@ -450,7 +472,7 @@ router.post(
             );
             res.status(201).json({ photos: photos.rows });
         } catch (err) {
-            await client.query("ROLLBACK").catch(() => {});
+            await client.query("ROLLBACK").catch(() => { });
             await discard(req.files);
             console.error(`POST /api/vendors/${vendorId}/photos failed:`, err);
             res.status(500).json({ error: "Could not save the photos." });
@@ -480,7 +502,7 @@ router.delete("/vendors/:vendorId/photos/:photoId", async (req, res) => {
         await client.query("COMMIT");
         res.status(204).end();
     } catch (err) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client.query("ROLLBACK").catch(() => { });
         console.error(`DELETE /api/vendors/${vendorId}/photos/${photoId} failed:`, err);
         res.status(500).json({ error: "Could not remove the photo." });
     } finally {

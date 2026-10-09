@@ -1,13 +1,38 @@
 import type { Metadata } from "next";
-
-// Provider area.
+import { redirect } from "next/navigation";
+import type { AuthUser } from "@/lib/auth-client";
+import { authenticatedApiGet } from "@/lib/auth-server";
 
 export const metadata: Metadata = {
-    // Authenticated routes are excluded from indexing.
-    robots: { index: false, follow: false },
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
-export default function ProviderLayout({ children }: { children: React.ReactNode }) {
-    // TODO(auth): add the vendor session and role check here; the layout protects every route in this group.
-    return children;
+type AuthMeResponse = {
+  authenticated: true;
+  user: AuthUser;
+};
+
+export default async function ProviderLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await authenticatedApiGet<AuthMeResponse>("/auth/me");
+
+  if (!session) {
+    redirect("/login");
+  }
+
+  if (session.user.user_role === "customer") {
+    redirect("/account");
+  }
+
+  if (session.user.user_role === "admin") {
+    redirect("/admin");
+  }
+
+  return children;
 }

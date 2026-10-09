@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { getVendorProfile } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
+import type {
+    VendorProfileWithOptions,
+} from "@/lib/types";
 import { ProviderShell, parseVendorParam } from "@/components/provider/ProviderShell";
 import { BusinessForm } from "./BusinessForm";
 
@@ -13,11 +16,13 @@ export default async function EditBusinessPage({
 }: {
     searchParams: Promise<{ vendor?: string }>;
 }) {
-    // TODO(auth): take the business from the signed-in owner.
+    // Ownership is verified by the protected backend profile route.
     const vendorId = parseVendorParam((await searchParams).vendor);
     if (vendorId === null) redirect("/vendors/dashboard");
 
-    const profile = await getVendorProfile(vendorId);
+    const profile =
+        await authenticatedApiGet<VendorProfileWithOptions>(`/vendors/${vendorId}/profile`);
+
     if (!profile) notFound();
 
     return (
