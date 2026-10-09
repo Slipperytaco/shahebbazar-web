@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AccountShell } from "@/components/customer/AccountShell";
 import { ConversationList } from "@/components/messaging/ConversationList";
-import { apiGet } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
 import type { ConversationSummary } from "@/lib/types";
 
 export const metadata: Metadata = {
@@ -9,8 +9,10 @@ export const metadata: Metadata = {
 };
 
 export default async function MessagesPage() {
-    const conversations = (await apiGet<ConversationSummary[]>("/me/conversations")) ?? [];
-
+    const conversations =
+        (await authenticatedApiGet<
+            ConversationSummary[]
+        >("/me/conversations")) ?? [];
     return (
         <AccountShell current="messages" title="Messages">
             <ConversationList

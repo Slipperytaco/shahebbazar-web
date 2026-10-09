@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AccountShell } from "@/components/customer/AccountShell";
 import { BusinessCard } from "@/components/shared/BusinessCard";
-import { apiGet } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
 import type { SavedBusiness } from "@/lib/types";
 
 export const metadata: Metadata = {
@@ -10,8 +10,10 @@ export const metadata: Metadata = {
 };
 
 export default async function SavedPage() {
-    const saved = (await apiGet<SavedBusiness[]>("/me/saved")) ?? [];
-
+    const saved =
+        (await authenticatedApiGet<SavedBusiness[]>(
+            "/me/saved"
+        )) ?? [];
     return (
         <AccountShell current="saved" title="Saved businesses">
             {saved.length === 0 ? (
