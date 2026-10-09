@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../db');
 const router = express.Router();
+const { normalisePhone } = require("../lib/phone");
 
 router.get("/", async (req, res) => {
     try {
@@ -105,6 +106,15 @@ router.post("/", async (req, res) => {
         });
     }
 
+    const phone = normalisePhone(vendor_phone);
+
+    if (!phone) {
+        return res.status(400).json({
+            success: false,
+            error: "Enter a valid phone number"
+        });
+    }
+
     if (
         !vendor_nid_reference ||
         !String(vendor_nid_reference).trim()
@@ -116,7 +126,7 @@ router.post("/", async (req, res) => {
     }
 
     const name = String(vendor_name).trim();
-    const phone = String(vendor_phone).trim();
+    //const phone = String(vendor_phone).trim();
 
     const email =
         vendor_email && String(vendor_email).trim()
