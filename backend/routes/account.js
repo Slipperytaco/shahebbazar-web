@@ -9,6 +9,7 @@ const {
 const router = express.Router();
 
 router.use(
+    "/me",
     requireAuthenticatedUser,
     requireRole("customer")
 );

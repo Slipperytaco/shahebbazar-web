@@ -1,29 +1,55 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { saveVendorProfile } from "@/lib/api";
-import type { SaveProfileResult, VendorProfileInput } from "@/lib/types";
+import { authenticatedApiSend } from "@/lib/auth-server";
+import type {
+  SaveProfileResult,
+  VendorProfile,
+  VendorProfileInput,
+} from "@/lib/types";
 
-// Saves the Add / Edit Business form, then refreshes every cached page that shows the business.
 export async function saveBusinessProfile(
-    vendorId: number,
-    input: VendorProfileInput
+  vendorId: number,
+  input: VendorProfileInput
 ): Promise<SaveProfileResult> {
-    // TODO(auth): verify the signed-in user owns vendorId.
+  if (!Number.isSafeInteger(vendorId) || vendorId <= 0) {
+    return {
+      ok: false,
+      error: "Invalid vendor id",
+    };
+  }
 
-    if (!Number.isSafeInteger(vendorId) || vendorId <= 0) {
-        return { ok: false, error: "Invalid vendor id" };
-    }
-    if (!input || typeof input !== "object") {
-        return { ok: false, error: "Invalid form data" };
-    }
+  if (!input || typeof input !== "object") {
+    return {
+      ok: false,
+      error: "Invalid form data",
+    };
+  }
 
-    const result = await saveVendorProfile(vendorId, input);
-    if (result.ok) revalidatePath("/", "layout");
-    return result;
+  const result = await authenticatedApiSend<VendorProfile>(
+    "PUT",
+    `/vendors/${vendorId}/profile`,
+    input
+  );
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error,
+      errors: result.errors,
+    };
+  }
+
+  revalidatePath(`/vendors/dashboard/business?vendor=${vendorId}`);
+  revalidatePath(`/vendors/dashboard?vendor=${vendorId}`);
+  revalidatePath("/", "layout");
+
+  return {
+    ok: true,
+    profile: result.data,
+  };
 }
 
-// Uploads go straight from the browser to the API, so cached pages are refreshed separately afterwards.
 export async function refreshPublicPages(): Promise<void> {
-    revalidatePath("/", "layout");
+  revalidatePath("/", "layout");
 }

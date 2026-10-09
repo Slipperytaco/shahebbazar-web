@@ -3,6 +3,7 @@ import { MapPin, Search } from "lucide-react";
 import { t, localeHref, type Locale } from "@/lib/i18n";
 import { MainNavList } from "../public/SideNav";
 import { MobileMenu } from "./MobileMenu";
+import { SessionControls } from "@/components/auth/SessionControls";
 
 // Site header: brand, global search, language toggle and account actions.
 export function SiteHeader({ locale, current }: { locale: Locale; current?: string }) {
@@ -79,24 +80,7 @@ export function SiteHeader({ locale, current }: { locale: Locale; current?: stri
                         </Link>
                     </nav>
 
-                    <Link
-                        href="/account"
-                        className="hidden text-sm font-medium text-muted hover:text-ink lg:block"
-                    >
-                        {copy.myAccount}
-                    </Link>
-                    <Link
-                        href={localeHref("/login", locale)}
-                        className="hidden text-sm font-medium text-muted hover:text-ink lg:block"
-                    >
-                        {copy.logIn}
-                    </Link>
-                    <Link
-                        href={localeHref("/register", locale)}
-                        className="inline-flex items-center justify-center rounded-[10px] bg-brand-600 px-3 py-2.5 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-brand-700 max-[359px]:hidden sm:px-[1.125rem]"
-                    >
-                        {copy.register}
-                    </Link>
+                    <SessionControls />
 
                     <MobileMenu>
                         <form action="/search" method="get" role="search" className="relative md:hidden">
@@ -116,12 +100,7 @@ export function SiteHeader({ locale, current }: { locale: Locale; current?: stri
                         </nav>
 
                         <div className="mt-3 grid grid-cols-2 gap-2 border-t border-line pt-3 text-sm font-medium">
-                            <Link href="/account" className="rounded-[10px] px-3.5 py-2.5 text-muted hover:bg-surface-2 hover:text-ink">
-                                {copy.myAccount}
-                            </Link>
-                            <Link href={localeHref("/login", locale)} className="rounded-[10px] px-3.5 py-2.5 text-muted hover:bg-surface-2 hover:text-ink">
-                                {copy.logIn}
-                            </Link>
+                            <SessionControls />
                             <Link
                                 href={localeHref("/", "en")}
                                 aria-current={locale === "en" ? "true" : undefined}

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Star } from "lucide-react";
-import { apiGet, getVendorSummary } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
 import { formatDateTime } from "@/lib/format";
 import { ProviderShell, parseVendorParam } from "@/components/provider/ProviderShell";
-import type { OwnerReview } from "@/lib/types";
+import type { OwnerReview, VendorSummary} from "@/lib/types";
 import { ReplyForm } from "./ReplyForm";
 
 export const metadata: Metadata = {
@@ -15,8 +15,8 @@ export default async function OwnerReviewsPage({ searchParams }: { searchParams:
     const vendorId = parseVendorParam((await searchParams).vendor);
     if (vendorId === null) redirect("/vendors/dashboard");
     const [vendor, reviews] = await Promise.all([
-        getVendorSummary(vendorId),
-        apiGet<OwnerReview[]>(`/vendors/${vendorId}/reviews`),
+        authenticatedApiGet<VendorSummary>(`/vendors/${vendorId}/summary`),
+        authenticatedApiGet<OwnerReview[]>(`/vendors/${vendorId}/reviews`),
     ]);
     if (!vendor) notFound();
 

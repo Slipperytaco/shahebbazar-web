@@ -1,11 +1,11 @@
 import Link from "next/link";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import {
     BadgePercent,
     CalendarDays,
-    ChartLine,
+    //ChevronRight,
     House,
     MapPin,
-    MessageSquareText,
     MessagesSquare,
     Package,
     Settings,
@@ -33,19 +33,18 @@ type NavItem = {
     label: string;
     Icon: LucideIcon;
 } & (
-    | { path: string; hash?: string }
-    // Not built yet. "Soon" is planned for this phase; "Later" was moved
-    // to Phase 2 by the client.
-    | { path?: undefined; availability: "Soon" | "Later" }
-);
+        | { path: string; hash?: string }
+        // Not built yet. "Soon" is planned for this phase; "Later" was moved
+        // to Phase 2 by the client.
+
+        | { path?: undefined; availability: "Soon" | "Later" }
+    );
 
 const NAV: NavItem[] = [
     { key: "dashboard", label: "Dashboard", Icon: House, path: "/vendors/dashboard" },
     { key: "business", label: "My Business", Icon: Store, path: "/vendors/dashboard/business" },
     { key: "listings", label: "Products & Services", Icon: Package, path: "/vendors/dashboard/listings" },
     { key: "payments", label: "Payment Methods", Icon: Wallet, path: "/vendors/dashboard/payment-methods" },
-    { key: "analytics", label: "Analytics", Icon: ChartLine, path: "/vendors/dashboard", hash: "analytics" },
-    { key: "inquiries", label: "Inquiries", Icon: MessageSquareText, path: "/vendors/dashboard/inquiries" },
     { key: "reviews", label: "Reviews", Icon: Star, path: "/vendors/dashboard/reviews" },
     { key: "messages", label: "Messages", Icon: MessagesSquare, path: "/vendors/dashboard/messages" },
     { key: "bookings", label: "Bookings", Icon: CalendarDays, availability: "Later" },
@@ -53,17 +52,27 @@ const NAV: NavItem[] = [
     { key: "settings", label: "Settings", Icon: Settings, path: "/vendors/dashboard/settings" },
 ];
 
-// Reads the development `?vendor=<id>` parameter.
-export function parseVendorParam(raw: string | string[] | undefined): number | null {
-    if (typeof raw !== "string" || !/^\d{1,10}$/.test(raw)) return null;
+
+export function parseVendorParam(
+    raw: string | string[] | undefined
+): number | null {
+    if (typeof raw !== "string" || !/^\d{1,10}$/.test(raw)) {
+        return null;
+    }
+
     const id = Number(raw);
     return id > 0 && id <= 2147483647 ? id : null;
 }
 
-/** Appends the development `vendor` parameter to a provider path. */
-export function providerHref(path: string, vendorId: number, hash?: string): string {
-    return `${path}?vendor=${vendorId}${hash ? `#${hash}` : ""}`;
+
+export function providerHref(
+    path: string,
+    vendorId: number,
+    hash?: string
+): string {
+    return `${path}?vendor=${vendorId}${hash ? `#\${hash}` : ""}`;
 }
+
 
 /** "SB-000042": the id the design shows in the header, zero-padded. */
 export function businessCode(vendorId: number): string {
@@ -80,6 +89,7 @@ export function ProviderShell({
     children: React.ReactNode;
 }) {
     const initial = vendor.vendor_name.trim().charAt(0).toUpperCase() || "?";
+
     const navList = (
         <ul className="space-y-0.5">
             {NAV.map((item) => (
@@ -102,14 +112,6 @@ export function ProviderShell({
                     </Link>
 
                     <div className="ml-auto flex min-w-0 items-center gap-3 sm:gap-4">
-                        <Link
-                            href="/vendors/dashboard"
-                            className="hidden text-[0.8125rem] font-medium text-muted hover:text-ink sm:block"
-                            title="Development only: pick another business. Removed when sign-in exists."
-                        >
-                            Switch business
-                        </Link>
-
                         <div className="flex min-w-0 items-center gap-2.5">
                             <span
                                 aria-hidden
@@ -117,23 +119,35 @@ export function ProviderShell({
                             >
                                 {initial}
                             </span>
+
                             <div className="hidden min-w-0 leading-tight min-[420px]:block">
-                                <p className="truncate text-sm font-semibold">{vendor.vendor_name}</p>
-                                <p className="text-[0.75rem] text-muted">Business Owner</p>
+                                <p className="truncate text-sm font-semibold">
+                                    {vendor.vendor_name}
+                                </p>
+                                <p className="text-[0.75rem] text-muted">
+                                    Business Owner
+                                </p>
                             </div>
                         </div>
 
+                        {/* Desktop logout */}
+                        <div className="hidden sm:block">
+                            <LogoutButton />
+                        </div>
+
+                        {/* Mobile navigation and logout */}
                         <MobileMenu>
-                            <p className="truncate px-3.5 pb-2 text-sm font-semibold">{vendor.vendor_name}</p>
+                            <p className="truncate px-3.5 pb-2 text-sm font-semibold">
+                                {vendor.vendor_name}
+                            </p>
+
                             <nav aria-label="Provider">
                                 {navList}
                             </nav>
-                            <Link
-                                href="/vendors/dashboard"
-                                className="mt-3 block border-t border-line px-3.5 pt-3 text-sm font-medium text-muted hover:text-ink"
-                            >
-                                Switch business
-                            </Link>
+
+                            <div className="mt-3 border-t border-line px-3.5 pt-3">
+                                <LogoutButton />
+                            </div>
                         </MobileMenu>
                     </div>
                 </div>
@@ -157,31 +171,34 @@ export function ProviderShell({
 
 function NavRow({ item, vendorId, active }: { item: NavItem; vendorId: number; active: boolean }) {
     const { Icon, label } = item;
-    const row = "flex items-center gap-3 rounded-[10px] px-3.5 py-2.5 text-sm";
+    const rowClasses = "flex items-center gap-3 rounded-[10px] px-3.5 py-2.5 text-sm font-medium transition-colors";
 
     if (item.path === undefined) {
         return (
-            <span aria-disabled="true" className={`${row} cursor-default font-medium text-soft`}>
-                <Icon className="size-[19px]" strokeWidth={1.75} />
-                <span className="flex-1">{label}</span>
-                <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[0.6875rem] font-medium text-muted">
+            <div
+                aria-disabled="true"
+                className={`${rowClasses} cursor-default text-soft justify-between bg-transparent`}
+            >
+                <div className="flex items-center gap-3">
+                    <Icon className="size-4 shrink-0" />
+                    <span>{label}</span>
+                </div>
+                <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted border border-line">
                     {item.availability}
                 </span>
-            </span>
+            </div>
         );
     }
 
     return (
         <Link
             href={providerHref(item.path, vendorId, item.hash)}
-            aria-current={active ? "page" : undefined}
-            className={`${row} transition-colors ${
-                active
-                    ? "bg-brand-50 font-semibold text-brand-600"
-                    : "font-medium text-muted hover:bg-surface-2 hover:text-ink"
-            }`}
+            className={`${rowClasses} ${active
+                ? "bg-brand-50 text-brand-700"
+                : "text-muted hover:bg-surface-2 hover:text-ink"
+                }`}
         >
-            <Icon className="size-[19px]" strokeWidth={1.75} />
+            <Icon className={`size-4 shrink-0 ${active ? "text-brand-600" : ""}`} />
             <span>{label}</span>
         </Link>
     );

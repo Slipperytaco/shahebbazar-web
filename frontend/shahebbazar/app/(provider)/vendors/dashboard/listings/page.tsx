@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { getVendorSummary } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
+import type { VendorSummary } from "@/lib/types";
 import { ProviderShell, parseVendorParam } from "@/components/provider/ProviderShell";
 import { ListingsManager } from "./ListingsManager";
 
@@ -18,7 +19,10 @@ export default async function ListingsPage({
     const vendorId = parseVendorParam((await searchParams).vendor);
     if (vendorId === null) redirect("/vendors/dashboard");
 
-    const vendor = await getVendorSummary(vendorId);
+    const vendor =
+        await authenticatedApiGet<VendorSummary>(
+            `/vendors/${vendorId}/summary`
+        );
     if (!vendor) notFound();
 
     return (

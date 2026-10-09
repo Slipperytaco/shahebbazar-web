@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { apiGet, getVendorSummary } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
 import { ProviderShell, parseVendorParam, providerHref } from "@/components/provider/ProviderShell";
 import { ConversationList } from "@/components/messaging/ConversationList";
-import type { ConversationSummary } from "@/lib/types";
+import type { ConversationSummary, VendorSummary } from "@/lib/types";
 
 export const metadata: Metadata = {
     title: "Inquiries",
@@ -13,8 +13,8 @@ export default async function InquiriesPage({ searchParams }: { searchParams: Pr
     const vendorId = parseVendorParam((await searchParams).vendor);
     if (vendorId === null) redirect("/vendors/dashboard");
     const [vendor, conversations] = await Promise.all([
-        getVendorSummary(vendorId),
-        apiGet<ConversationSummary[]>(`/vendors/${vendorId}/conversations?type=inquiries`),
+        authenticatedApiGet<VendorSummary>(`/vendors/${vendorId}/summary`),
+        authenticatedApiGet<ConversationSummary[]>(`/vendors/${vendorId}/conversations?type=inquiries`),
     ]);
     if (!vendor) notFound();
 

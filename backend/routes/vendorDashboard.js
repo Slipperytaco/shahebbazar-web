@@ -1,10 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-
+const { 
+    requireAuthenticatedUser, 
+    requireRole, 
+    requireVendorOwnership, 
+} = require("../lib/middleware/auth");
 // Provider dashboard data.
 
-// TODO(auth): restrict to the owner of :vendorId once sessions exist.
 
 // Offered as tabs on the dashboard. Anything else falls back to 30.
 const PERIODS = new Set([7, 30, 90]);
@@ -17,19 +20,55 @@ function parseVendorId(raw) {
         : null;
 }
 
-// GET /api/vendors/:vendorId/dashboard?days=7|30|90: dashboard figures for a business in any status.
-router.get("/vendors/:vendorId/dashboard", async (req, res) => {
-    const vendorId = parseVendorId(req.params.vendorId);
-    if (vendorId === null) {
-        return res.status(400).json({ error: "Invalid vendor id" });
+router.get(
+    "/vendor-account/businesses",
+    requireAuthenticatedUser,
+    requireRole("vendor"),
+    async (req, res) => {
+        try {
+            const result = await pool.query(
+                `SELECT
+                    vendor_id,
+                    vendor_name,
+                    vendor_status
+                 FROM vendors
+                 WHERE user_id = $1
+                 ORDER BY vendor_name, vendor_id`,
+                [req.user.user_id]
+            );
+
+            return res.json(result.rows);
+        } catch (error) {
+            console.error(
+                "GET /api/vendor-account/businesses failed:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                error:
+                    "Could not load your businesses.",
+            });
+        }
     }
+);
+// GET /api/vendors/:vendorId/dashboard?days=7|30|90: dashboard figures for a business in any status.
+router.get("/vendors/:vendorId/dashboard",
+    requireAuthenticatedUser,
+    requireRole("vendor", "admin"),
+    requireVendorOwnership,
+    async (req, res) => {
+        const vendorId = req.user.user_role === "admin" ? parseVendorId(req.params.vendorId) : req.vendor.vendor_id;
+        if (vendorId === null) {
+            return res.status(400).json({ error: "Invalid vendor id" });
+        }
 
-    const requested = Number(req.query.days);
-    const days = PERIODS.has(requested) ? requested : DEFAULT_PERIOD;
+        const requested = Number(req.query.days);
+        const days = PERIODS.has(requested) ? requested : DEFAULT_PERIOD;
 
-    try {
-        const vendorResult = await pool.query(
-            `SELECT v.vendor_id, v.vendor_slug, v.vendor_name, v.vendor_description,
+        try {
+            const vendorResult = await pool.query(
+                `SELECT v.vendor_id, v.vendor_slug, v.vendor_name, v.vendor_description,
                     v.vendor_phone, v.vendor_email, v.vendor_address,
                     v.vendor_logo_url, v.vendor_cover_url,
                     v.vendor_status, v.vendor_rejection_reason,
@@ -47,16 +86,16 @@ router.get("/vendors/:vendorId/dashboard", async (req, res) => {
              LEFT JOIN locations loc ON loc.location_id = v.location_id
              LEFT JOIN v_business_cards b ON b.vendor_id = v.vendor_id
              WHERE v.vendor_id = $1`,
-            [vendorId]
-        );
+                [vendorId]
+            );
 
-        if (vendorResult.rowCount === 0) {
-            return res.status(404).json({ error: "Vendor not found" });
-        }
+            if (vendorResult.rowCount === 0) {
+                return res.status(404).json({ error: "Vendor not found" });
+            }
 
-        const [stats, series, listings] = await Promise.all([
-            pool.query(
-                `WITH bounds AS (
+            const [stats, series, listings] = await Promise.all([
+                pool.query(
+                    `WITH bounds AS (
                      SELECT (CURRENT_DATE - ($2::int - 1)) AS cur_start,
                             (CURRENT_DATE - (2 * $2::int - 1)) AS prev_start
                  )
@@ -86,12 +125,12 @@ router.get("/vendors/:vendorId/dashboard", async (req, res) => {
                       WHERE vendor_id = $1 AND review_status = 'published') AS rating,
                      (SELECT COUNT(*)::int FROM reviews
                       WHERE vendor_id = $1 AND review_status = 'published') AS review_count`,
-                [vendorId, days]
-            ),
+                    [vendorId, days]
+                ),
 
-            // One row per day, zero-filled, so the chart has no gaps.
-            pool.query(
-                `WITH days AS (
+                // One row per day, zero-filled, so the chart has no gaps.
+                pool.query(
+                    `WITH days AS (
                      SELECT (CURRENT_DATE - g)::date AS day
                      FROM generate_series(0, $2::int - 1) AS g
                  ),
@@ -109,11 +148,11 @@ router.get("/vendors/:vendorId/dashboard", async (req, res) => {
                  LEFT JOIN vendor_search_impressions i
                         ON i.vendor_id = $1 AND i.impression_day = d.day
                  ORDER BY d.day`,
-                [vendorId, days]
-            ),
+                    [vendorId, days]
+                ),
 
-            pool.query(
-                `SELECT l.listing_id, l.listing_title, l.listing_price, l.listing_price_max,
+                pool.query(
+                    `SELECT l.listing_id, l.listing_title, l.listing_price, l.listing_price_max,
                         l.listing_price_unit, l.listing_status,
                         c.category_name,
                         (SELECT p.photo_url FROM listing_photos p
@@ -125,45 +164,48 @@ router.get("/vendors/:vendorId/dashboard", async (req, res) => {
                  WHERE l.vendor_id = $1 AND l.listing_status <> 'archived'
                  ORDER BY l.listing_created_at DESC, l.listing_id DESC
                  LIMIT $2`,
-                [vendorId, LISTING_PREVIEW_LIMIT]
-            ),
-        ]);
+                    [vendorId, LISTING_PREVIEW_LIMIT]
+                ),
+            ]);
 
-        const s = stats.rows[0];
+            const s = stats.rows[0];
 
-        res.json({
-            vendor: vendorResult.rows[0],
-            days,
-            stats: {
-                profileViews: { current: s.views_current, previous: s.views_previous },
-                searchAppearances: {
-                    current: s.appearances_current,
-                    previous: s.appearances_previous,
+            res.json({
+                vendor: vendorResult.rows[0],
+                days,
+                stats: {
+                    profileViews: { current: s.views_current, previous: s.views_previous },
+                    searchAppearances: {
+                        current: s.appearances_current,
+                        previous: s.appearances_previous,
+                    },
+                    listings: {
+                        active: s.listings_active,
+                        addedInPeriod: s.listings_added,
+                        pending: s.listings_pending,
+                        total: s.listings_total,
+                    },
+                    // NUMERIC arrives from node-pg as a string.
+                    rating: {
+                        average: s.rating === null ? null : Number(s.rating),
+                        count: s.review_count,
+                    },
                 },
-                listings: {
-                    active: s.listings_active,
-                    addedInPeriod: s.listings_added,
-                    pending: s.listings_pending,
-                    total: s.listings_total,
-                },
-                // NUMERIC arrives from node-pg as a string.
-                rating: {
-                    average: s.rating === null ? null : Number(s.rating),
-                    count: s.review_count,
-                },
-            },
-            series: series.rows,
-            listings: listings.rows,
-        });
-    } catch (err) {
-        console.error(`GET /api/vendors/${vendorId}/dashboard failed:`, err);
-        res.status(500).json({ error: "Could not load the dashboard" });
-    }
-});
+                series: series.rows,
+                listings: listings.rows,
+            });
+        } catch (err) {
+            console.error(`GET /api/vendors/${vendorId}/dashboard failed:`, err);
+            res.status(500).json({ error: "Could not load the dashboard" });
+        }
+    });
 
 // GET /api/vendors/:vendorId/summary: name, slug and status for a provider page's frame.
-router.get("/vendors/:vendorId/summary", async (req, res) => {
-    const vendorId = parseVendorId(req.params.vendorId);
+router.get( "/vendors/:vendorId/summary", 
+    requireAuthenticatedUser, 
+    requireRole("vendor", "admin"), requireVendorOwnership, 
+    async (req, res) => {    
+        const vendorId = req.user.user_role === "admin" ? parseVendorId(req.params.vendorId) : req.vendor.vendor_id;
     if (vendorId === null) {
         return res.status(400).json({ error: "Invalid vendor id" });
     }

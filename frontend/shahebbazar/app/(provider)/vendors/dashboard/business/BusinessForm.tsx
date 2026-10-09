@@ -207,8 +207,8 @@ export function BusinessForm({ initial }: { initial: VendorProfileWithOptions })
                 next.vendor.vendor_status === "pending" && submit
                     ? "Saved and sent for approval. An administrator will review it."
                     : next.vendor.vendor_status === "approved"
-                      ? "Saved. Your public page shows the changes now."
-                      : "Saved.",
+                        ? "Saved. Your public page shows the changes now."
+                        : "Saved.",
         });
     }
 
@@ -269,12 +269,12 @@ export function BusinessForm({ initial }: { initial: VendorProfileWithOptions })
         !today || today.mode === "unset"
             ? null
             : today.mode === "closed"
-              ? "Closed today"
-              : today.mode === "24h"
-                ? "Open 24 hours today"
-                : today.open && today.close
-                  ? `Today ${clock(today.open)} – ${clock(today.close)}`
-                  : null;
+                ? "Closed today"
+                : today.mode === "24h"
+                    ? "Open 24 hours today"
+                    : today.open && today.close
+                        ? `Today ${clock(today.open)} – ${clock(today.close)}`
+                        : null;
     const cover = imageSrc(photos[0]?.url ?? null);
     const logo = imageSrc(logoUrl);
 
@@ -413,7 +413,7 @@ export function BusinessForm({ initial }: { initial: VendorProfileWithOptions })
                                 />
                             </Field>
 
-                            <Field id="f-phone" label="Phone Number" required error={errors.phone} hint="Enter a valid phone number, e.g. 01712-345678.">
+                            <Field id="f-phone" label="Customer Contact Number" required error={errors.phone} hint="Enter the Bangladeshi phone number customers should use to contact this business, e.g. 01712-345678.">
                                 <input
                                     id="f-phone"
                                     type="tel"
@@ -671,9 +671,8 @@ export function BusinessForm({ initial }: { initial: VendorProfileWithOptions })
                     {status && (
                         <p
                             role={status.type === "error" ? "alert" : "status"}
-                            className={`mb-3 rounded-lg p-2.5 text-[0.8125rem] ${
-                                status.type === "error" ? "bg-error-bg text-error-ink" : "bg-success-bg text-success-ink"
-                            }`}
+                            className={`mb-3 rounded-lg p-2.5 text-[0.8125rem] ${status.type === "error" ? "bg-error-bg text-error-ink" : "bg-success-bg text-success-ink"
+                                }`}
                         >
                             {status.text}
                         </p>
@@ -694,11 +693,10 @@ export function BusinessForm({ initial }: { initial: VendorProfileWithOptions })
                             type="button"
                             onClick={() => save(false)}
                             disabled={saving || locked || (!dirty && !canSubmit)}
-                            className={`inline-flex items-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-medium disabled:opacity-50 ${
-                                canSubmit
+                            className={`inline-flex items-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-medium disabled:opacity-50 ${canSubmit
                                     ? "border border-line-strong text-brand-600 hover:bg-brand-50"
                                     : "bg-brand-600 text-white hover:bg-brand-700"
-                            }`}
+                                }`}
                         >
                             {saving && <Loader2 className="size-4 animate-spin" />}
                             {canSubmit ? "Save as Draft" : "Save changes"}

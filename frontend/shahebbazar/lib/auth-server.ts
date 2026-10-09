@@ -65,6 +65,7 @@ export type AuthenticatedSendResult<T = unknown> =
     | {
         ok: false;
         error: string;
+        errors?: Record<string, string>;
     };
 
 export async function authenticatedApiSend<T = unknown>(
@@ -110,11 +111,20 @@ export async function authenticatedApiSend<T = unknown>(
             .catch(() => null);
 
         if (!response.ok) {
+            const fieldErrors =
+                data?.errors &&
+                    typeof data.errors === "object" &&
+                    !Array.isArray(data.errors)
+                    ? (data.errors as Record<string, string>)
+                    : undefined;
+
             return {
                 ok: false,
                 error:
-                    data?.error ??
-                    `Request failed (${response.status})`,
+                    typeof data?.error === "string"
+                        ? data.error
+                        : `Request failed (${response.status})`,
+                errors: fieldErrors,
             };
         }
 

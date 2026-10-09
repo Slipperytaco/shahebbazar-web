@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChartLine, Flag, LayoutGrid, MapPin, ShieldCheck, Star, type LucideIcon } from "lucide-react";
 import { MobileMenu } from "../shared/MobileMenu";
-
+import { LogoutButton } from "@/components/auth/LogoutButton";
 // Page frame for the admin area.
 
 type Item = { key: string; label: string; Icon: LucideIcon } & ({ href: string } | { soon: true });
@@ -14,7 +14,15 @@ const NAV: Item[] = [
     { key: "categories", label: "Categories", Icon: LayoutGrid, href: "/admin/categories" },
 ];
 
-export function AdminShell({ current, children }: { current: string; children: React.ReactNode }) {
+export function AdminShell({
+    current,
+    userName = "Administrator",
+    children,
+}: {
+    current: string;
+    userName?: string;
+    children: React.ReactNode;
+}) {
     const row = "flex items-center gap-3 rounded-[10px] px-3.5 py-2.5 text-sm";
     const navList = (
         <ul className="space-y-0.5">
@@ -24,11 +32,10 @@ export function AdminShell({ current, children }: { current: string; children: R
                         <Link
                             href={item.href}
                             aria-current={item.key === current ? "page" : undefined}
-                            className={`${row} ${
-                                item.key === current
+                            className={`${row} ${item.key === current
                                     ? "bg-brand-50 font-semibold text-brand-600"
                                     : "font-medium text-muted hover:bg-surface-2 hover:text-ink"
-                            }`}
+                                }`}
                         >
                             <item.Icon className="size-[19px]" strokeWidth={1.75} />
                             {item.label}
@@ -56,9 +63,33 @@ export function AdminShell({ current, children }: { current: string; children: R
                         <span className="text-xl font-bold tracking-tight text-brand-600 sm:text-[1.35rem]">Shahebbazar</span>
                     </Link>
                     <span className="rounded-full bg-ink px-2.5 py-0.5 text-[0.75rem] font-semibold text-white">Admin</span>
-                    <div className="ml-auto">
+                    <div className="ml-auto flex items-center gap-3">
+                        <div className="hidden leading-tight sm:block">
+                            <p className="max-w-40 truncate text-sm font-semibold">
+                                {userName}
+                            </p>
+
+                            <p className="text-xs text-muted">
+                                Administrator
+                            </p>
+                        </div>
+
+                        <div className="hidden sm:block">
+                            <LogoutButton />
+                        </div>
+
                         <MobileMenu>
-                            <nav aria-label="Admin">{navList}</nav>
+                            <p className="truncate px-3.5 pb-2 text-sm font-semibold">
+                                {userName}
+                            </p>
+
+                            <nav aria-label="Admin">
+                                {navList}
+                            </nav>
+
+                            <div className="mt-3 border-t border-line px-3.5 pt-3">
+                                <LogoutButton />
+                            </div>
                         </MobileMenu>
                     </div>
                 </div>
