@@ -96,19 +96,30 @@ export async function searchBusinesses(params: {
 }
 
 // Retrieves a single business profile, or null when it does not exist.
-export async function getBusiness(slug: string): Promise<BusinessDetail | null> {
-    const path = `/api/businesses/${encodeURIComponent(slug)}`;
+export async function getBusiness(
+    slug: string
+): Promise<BusinessDetail | null> {
+    const path =
+        `/api/businesses/${encodeURIComponent(slug)}`;
 
     const res = await fetch(`${API_BASE}${path}`, {
-        next: { revalidate: 300 },
-        headers: { Accept: "application/json" },
+        cache: "no-store",
+        headers: {
+            Accept: "application/json",
+        },
     });
 
-    if (res.status === 404) return null;
-    if (!res.ok) throw new ApiError(res.status, path);
+    if (res.status === 404) {
+        return null;
+    }
+
+    if (!res.ok) {
+        throw new ApiError(res.status, path);
+    }
 
     return res.json() as Promise<BusinessDetail>;
 }
+
 
 // Returns null on failure so the profile still renders without the panel.
 export async function getPaymentMethods(slug: string): Promise<PaymentMethod[] | null> {

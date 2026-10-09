@@ -1,8 +1,17 @@
 const express = require("express");
 const pool = require("../db");
-const { currentCustomerId, parseId } = require("../lib/currentUser");
+const { parseId } = require("../lib/currentUser");
+const {
+    requireAuthenticatedUser,
+    requireRole,
+} = require("../lib/middleware/auth");
 
 const router = express.Router();
+
+router.use(
+    requireAuthenticatedUser,
+    requireRole("customer")
+);
 
 const CARD_COLUMNS = `
     c.vendor_id, c.vendor_slug, c.vendor_name, c.vendor_name_bn,
@@ -13,7 +22,7 @@ const CARD_COLUMNS = `
 
 router.get("/me", async (req, res) => {
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         if (!userId) return res.status(404).json({ error: "No customer account exists" });
         const result = await pool.query(
             `SELECT u.user_id, u.user_name, u.user_phone, u.user_email,
@@ -33,7 +42,7 @@ router.get("/me", async (req, res) => {
 
 router.get("/me/saved", async (req, res) => {
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         const result = await pool.query(
             `SELECT ${CARD_COLUMNS}, s.saved_at
              FROM saved_businesses s
@@ -51,7 +60,7 @@ router.get("/me/saved", async (req, res) => {
 
 router.get("/me/saved-ids", async (req, res) => {
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         const result = await pool.query("SELECT vendor_id FROM saved_businesses WHERE user_id = $1", [userId]);
         res.json(result.rows.map((row) => row.vendor_id));
     } catch (err) {
@@ -64,7 +73,7 @@ router.put("/me/saved/:vendorId", async (req, res) => {
     const vendorId = parseId(req.params.vendorId);
     if (!vendorId) return res.status(400).json({ error: "Invalid business id" });
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         const vendor = await pool.query(
             "SELECT 1 FROM vendors WHERE vendor_id = $1 AND vendor_status = 'approved'",
             [vendorId]
@@ -86,7 +95,7 @@ router.delete("/me/saved/:vendorId", async (req, res) => {
     const vendorId = parseId(req.params.vendorId);
     if (!vendorId) return res.status(400).json({ error: "Invalid business id" });
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         await pool.query("DELETE FROM saved_businesses WHERE user_id = $1 AND vendor_id = $2", [userId, vendorId]);
         res.json({ saved: false });
     } catch (err) {
@@ -97,7 +106,7 @@ router.delete("/me/saved/:vendorId", async (req, res) => {
 
 router.get("/me/reviews", async (req, res) => {
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         const result = await pool.query(
             `SELECT r.review_id, r.review_rating AS rating, r.review_body AS body, r.review_status AS status,
                     r.review_created_at AS created_at, r.review_reply AS reply, r.review_replied_at AS replied_at,
@@ -117,7 +126,7 @@ router.get("/me/reviews", async (req, res) => {
 
 router.get("/me/businesses/:slug", async (req, res) => {
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         const result = await pool.query(
             `SELECT v.vendor_id,
                     EXISTS (SELECT 1 FROM saved_businesses s WHERE s.user_id = $2 AND s.vendor_id = v.vendor_id) AS saved,

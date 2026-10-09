@@ -1,13 +1,41 @@
 import type { Metadata } from "next";
-
-// Authenticated customer area.
+import { redirect } from "next/navigation";
+import { authenticatedApiGet } from "@/lib/auth-server";
+import type { AuthUser } from "@/lib/auth-client";
 
 export const metadata: Metadata = {
-    // Account routes hold personal data and are excluded from indexing.
-    robots: { index: false, follow: false },
+    robots: {
+        index: false,
+        follow: false,
+    },
 };
 
-export default function SeekerLayout({ children }: { children: React.ReactNode }) {
-    // TODO(auth): add the customer session and role check here, redirecting to /login?next=/account.
+type AuthMeResponse = {
+    authenticated: true;
+    user: AuthUser;
+};
+
+export default async function SeekerLayout({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    const session =
+        await authenticatedApiGet<AuthMeResponse>(
+            "/auth/me"
+        );
+
+    if (!session) {
+        redirect("/login");
+    }
+
+    if (session.user.user_role === "vendor") {
+        redirect("/vendors/dashboard");
+    }
+
+    if (session.user.user_role === "admin") {
+        redirect("/admin");
+    }
+
     return children;
 }

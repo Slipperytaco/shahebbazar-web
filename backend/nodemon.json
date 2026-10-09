@@ -1,0 +1,14 @@
+{
+    "watch": [
+        "index.js",
+        "db.js",
+        "routes",
+        "lib"
+    ],
+    "ext": "js,json",
+    "ignore": [
+        "node_modules/**",
+        "uploads/**"
+    ],
+    "delay": 250
+}

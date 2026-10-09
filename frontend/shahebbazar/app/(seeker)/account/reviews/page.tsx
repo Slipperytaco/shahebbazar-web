@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Star } from "lucide-react";
 import { AccountShell } from "@/components/customer/AccountShell";
-import { apiGet } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
 import { formatDateTime } from "@/lib/format";
 import type { MyReview } from "@/lib/types";
 
@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function MyReviewsPage() {
-    const reviews = (await apiGet<MyReview[]>("/me/reviews")) ?? [];
+    const reviews = (await authenticatedApiGet<MyReview[]>("/me/reviews")) ?? [];
 
     return (
         <AccountShell current="reviews" title="My reviews">

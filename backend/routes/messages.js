@@ -1,6 +1,15 @@
 const express = require("express");
 const pool = require("../db");
-const { currentCustomerId, vendorOwnerId, parseId, cleanText } = require("../lib/currentUser");
+const {
+    vendorOwnerId,
+    parseId,
+    cleanText,
+} = require("../lib/currentUser");
+
+const {
+    requireAuthenticatedUser,
+    requireRole,
+} = require("../lib/middleware/auth");
 const { notifyNewMessage, listAlerts, markAlertsRead } = require("../lib/notify");
 
 const router = express.Router();
@@ -101,7 +110,7 @@ async function addMessage(conversation, senderUserId, body, senderName) {
         await client.query("COMMIT");
         return inserted.rows[0];
     } catch (err) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client.query("ROLLBACK").catch(() => { });
         throw err;
     } finally {
         client.release();
@@ -122,6 +131,12 @@ async function conversationHead(conversationId) {
     return result.rows[0] ?? null;
 }
 
+router.use(
+    "/me",
+    requireAuthenticatedUser,
+    requireRole("customer")
+);
+
 // Customer side --------------------------------------------------------
 
 router.post("/me/conversations", async (req, res) => {
@@ -133,8 +148,8 @@ router.post("/me/conversations", async (req, res) => {
     if (parsed.error) return res.status(400).json({ error: parsed.error });
 
     try {
-        const userId = await currentCustomerId();
-        if (!userId) return res.status(500).json({ error: "No customer account exists to send from." });
+        const userId = req.user.user_id;
+        //if (!userId) return res.status(500).json({ error: "No customer account exists to send from." });
 
         const vendor = await pool.query(
             "SELECT vendor_id FROM vendors WHERE vendor_id = $1 AND vendor_status = 'approved'",
@@ -176,8 +191,10 @@ router.post("/me/conversations", async (req, res) => {
 
 router.get("/me/conversations", async (req, res) => {
     try {
-        const userId = await currentCustomerId();
-        res.json(userId ? await listConversations({ userId }) : []);
+        const userId = req.user.user_id;
+        res.json(
+            await listConversations({ userId })
+        );
     } catch (err) {
         console.error("GET /api/me/conversations failed:", err);
         res.status(500).json({ error: "Could not load your messages" });
@@ -188,7 +205,7 @@ router.get("/me/conversations/:id", async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ error: "Invalid id" });
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         const thread = await openConversation(id, userId);
         if (!thread || thread.conversation.user_id !== userId) return res.status(404).json({ error: "Conversation not found" });
         res.json(thread);
@@ -204,7 +221,7 @@ router.post("/me/conversations/:id/messages", async (req, res) => {
     const parsed = parseBody(req.body?.body);
     if (parsed.error) return res.status(400).json({ error: parsed.error });
     try {
-        const userId = await currentCustomerId();
+        const userId = req.user.user_id;
         const conversation = await conversationHead(id);
         if (!conversation || conversation.user_id !== userId) return res.status(404).json({ error: "Conversation not found" });
         if (conversation.conversation_status !== "open") return res.status(409).json({ error: "This conversation has been closed." });
@@ -217,8 +234,10 @@ router.post("/me/conversations/:id/messages", async (req, res) => {
 
 router.get("/me/alerts", async (req, res) => {
     try {
-        const userId = await currentCustomerId();
-        res.json(userId ? await listAlerts(userId) : { alerts: [], unread: 0 });
+        const userId = req.user.user_id;
+        res.json(
+            await listAlerts(userId)
+        );
     } catch (err) {
         console.error("GET /api/me/alerts failed:", err);
         res.status(500).json({ error: "Could not load alerts" });
@@ -227,8 +246,8 @@ router.get("/me/alerts", async (req, res) => {
 
 router.post("/me/alerts/read", async (req, res) => {
     try {
-        const userId = await currentCustomerId();
-        if (userId) await markAlertsRead(userId);
+        const userId = req.user.user_id;
+        await markAlertsRead(userId);
         res.json({ ok: true });
     } catch (err) {
         console.error("POST /api/me/alerts/read failed:", err);

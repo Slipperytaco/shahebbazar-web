@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Bell, Bookmark, MessagesSquare, Star } from "lucide-react";
 import { AccountShell } from "@/components/customer/AccountShell";
-import { apiGet } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
 import { formatDateTime } from "@/lib/format";
 import type { AlertList, Customer } from "@/lib/types";
 import { markMyAlertsRead } from "../actions";
@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 
 export default async function AccountPage() {
     const [me, alerts] = await Promise.all([
-        apiGet<Customer>("/me"),
-        apiGet<AlertList>("/me/alerts"),
+        authenticatedApiGet<Customer>("/me"),
+        authenticatedApiGet<AlertList>("/me/alerts"),
     ]);
 
     if (!me) {
