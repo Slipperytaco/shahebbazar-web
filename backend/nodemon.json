@@ -1,4 +1,4 @@
-ggit{
+{
     "watch": [
         "index.js",
         "db.js",
