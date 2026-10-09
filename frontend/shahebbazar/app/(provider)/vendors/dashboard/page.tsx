@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { authenticatedApiGet } from "@/lib/auth-server";
 import type {
@@ -45,8 +45,20 @@ export default async function ProviderDashboardPage({
     const query = await searchParams;
     // The picker is restricted to businesses owned by the signed-in vendor.
     const vendorId = parseVendorParam(query.vendor);
-    if (vendorId === null) return <BusinessPicker />;
+    if (vendorId === null) {
+        const vendors =
+            (await authenticatedApiGet<VendorPickerRow[]>(
+                "/vendor-account/businesses"
+            )) ?? [];
 
+        const [onlyVendor] = vendors;
+
+        if (vendors.length === 1 && onlyVendor) {
+            redirect(providerHref("/vendors/dashboard", onlyVendor.vendor_id));
+        }
+
+        return <BusinessPicker vendors={vendors} />;
+    }
     const requested = Number(query.days);
     const days = PERIODS.find((p) => p === requested) ?? 30;
 
@@ -54,9 +66,9 @@ export default async function ProviderDashboardPage({
         authenticatedApiGet<VendorDashboard>(
             `/vendors/${vendorId}/dashboard?days=${days}`
         ),
-        authenticatedApiGet<AlertList>(
-            `/vendors/${vendorId}/alerts`
-        ).catch(() => null),
+        authenticatedApiGet<AlertList>(`/vendors/${vendorId}/alerts`).catch(
+            () => null
+        ),
     ]);
     if (!data) notFound();
 
@@ -66,7 +78,7 @@ export default async function ProviderDashboardPage({
         <ProviderShell vendor={vendor} current="dashboard">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">
+                    <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight">
                         Provider Dashboard
                     </h1>
                     <p className="mt-1.5 text-[0.9375rem] text-muted">
@@ -115,18 +127,22 @@ function StatusNotice({ vendor }: { vendor: VendorDashboard["vendor"] }) {
     const message = messages[vendor.vendor_status];
     if (!message) return null;
 
-    const isProblem = vendor.vendor_status === "rejected" || vendor.vendor_status === "suspended";
+    const isProblem =
+        vendor.vendor_status === "rejected" || vendor.vendor_status === "suspended";
 
     return (
         <div
             role="status"
-            className={`mt-5 rounded-xl p-4 text-[0.875rem] leading-relaxed ${isProblem ? "bg-error-bg text-error-ink" : "bg-sponsor-bg text-sponsor-ink"
+            className={`mt-5 rounded-xl p-4 text-[0.875rem] leading-relaxed ${isProblem
+                    ? "bg-error-bg text-error-ink"
+                    : "bg-sponsor-bg text-sponsor-ink"
                 }`}
         >
             <p>{message}</p>
             {vendor.vendor_rejection_reason && (
                 <p className="mt-1">
-                    <span className="font-semibold">Reason:</span> {vendor.vendor_rejection_reason}
+                    <span className="font-semibold">Reason:</span>{" "}
+                    {vendor.vendor_rejection_reason}
                 </p>
             )}
         </div>
@@ -141,14 +157,22 @@ function AnalyticsOverview({ data }: { data: VendorDashboard }) {
             id="analytics"
             title="Analytics Overview"
             action={
-                <nav aria-label="Period" className="flex rounded-[10px] border border-line-strong p-0.5">
+                <nav
+                    aria-label="Period"
+                    className="flex rounded-[10px] border border-line-strong p-0.5"
+                >
                     {PERIODS.map((p) => (
                         <Link
                             key={p}
-                            href={`${providerHref("/vendors/dashboard", vendor.vendor_id)}&days=${p}#analytics`}
+                            href={`${providerHref(
+                                "/vendors/dashboard",
+                                vendor.vendor_id
+                            )}&days=${p}#analytics`}
                             aria-current={p === days ? "true" : undefined}
                             scroll={false}
-                            className={`rounded-lg px-2.5 py-1 text-[0.75rem] font-medium whitespace-nowrap ${p === days ? "bg-brand-50 text-brand-600" : "text-muted hover:text-ink"
+                            className={`rounded-lg px-2.5 py-1 text-[0.75rem] font-medium whitespace-nowrap ${p === days
+                                    ? "bg-brand-50 text-brand-600"
+                                    : "text-muted hover:text-ink"
                                 }`}
                         >
                             {p} days
@@ -189,10 +213,7 @@ function AnalyticsOverview({ data }: { data: VendorDashboard }) {
 }
 
 // A simple page that lists the businesses connected to the signed-in provider account.
-async function BusinessPicker() {
-    const vendors =
-        (await authenticatedApiGet<VendorPickerRow[]>("/vendor-account/businesses")) ?? [];
-
+function BusinessPicker({ vendors }: { vendors: VendorPickerRow[] }) {
     return (
         <main className="mx-auto max-w-xl px-4 py-12">
             <h1 className="text-[1.5rem] font-bold tracking-tight">
@@ -209,13 +230,10 @@ async function BusinessPicker() {
                 </p>
             ) : (
                 <ul className="mt-6 divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card">
-                    {vendors.map((vendor: VendorPickerRow) => (
+                    {vendors.map((vendor) => (
                         <li key={vendor.vendor_id}>
                             <Link
-                                href={providerHref(
-                                    "/vendors/dashboard",
-                                    vendor.vendor_id
-                                )} 
+                                href={providerHref("/vendors/dashboard", vendor.vendor_id)}
                                 className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2"
                             >
                                 <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-medium">

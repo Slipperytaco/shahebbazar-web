@@ -12,17 +12,20 @@ export default function Navbar() {
             <div className="max-w-7xl mx-auto flex items-center justify-between">
 
                 {/* Brand */}
-                <a href="/" className="text-xl font-semibold text-white">
+                <Link href="/" className="text-xl font-semibold text-white">
                     ShahebBazar
-                </a>
+                </Link>
 
                 {/* Main navigation */}
                 <div className="flex gap-6 text-sm items-center">
 
-                    <a href="/" className="hover:text-white">Home</a>
-                    <a href="/search" className="hover:text-white">Search</a>
-                    <a href="/businesses" className="hover:text-white">Businesses</a>
-                    <a href="/categories" className="hover:text-white">Categories</a>
+                    <Link href="/" className="hover:text-white">Home</Link>
+                    <Link href="/search" className="hover:text-white">Search</Link>
+                    <Link href="/businesses" className="hover:text-white">Businesses</Link>
+                    <Link href="/categories" className="hover:text-white">Categories</Link>
+                    <Link href="/categories" className="hover:text-white">
+                        Categories
+                    </Link>
 
                     {/* Messages */}
                     {user && (

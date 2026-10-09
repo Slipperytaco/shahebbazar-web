@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { apiGet, getVendorSummary } from "@/lib/api";
+import { authenticatedApiGet } from "@/lib/auth-server";
 import { ProviderShell, parseVendorParam } from "@/components/provider/ProviderShell";
-import type { OwnerDetails } from "@/lib/types";
+import type { OwnerDetails, VendorSummary } from "@/lib/types";
 import { SettingsForm } from "./SettingsForm";
 
 export const metadata: Metadata = {
@@ -13,8 +13,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     const vendorId = parseVendorParam((await searchParams).vendor);
     if (vendorId === null) redirect("/vendors/dashboard");
     const [vendor, owner] = await Promise.all([
-        getVendorSummary(vendorId),
-        apiGet<OwnerDetails>(`/vendors/${vendorId}/owner`),
+        authenticatedApiGet<VendorSummary>(`/vendors/${vendorId}/summary`),
+        authenticatedApiGet<OwnerDetails>(`/vendors/${vendorId}/owner`),
     ]);
     if (!vendor || !owner) notFound();
 

@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { apiGet, getVendorSummary } from "@/lib/api";
-import { ProviderShell, parseVendorParam, providerHref } from "@/components/provider/ProviderShell";
+import { authenticatedApiGet } from "@/lib/auth-server";
+import { 
+    ProviderShell, 
+    parseVendorParam, 
+    providerHref 
+} from "@/components/provider/ProviderShell";
 import { ConversationList } from "@/components/messaging/ConversationList";
-import type { ConversationSummary } from "@/lib/types";
+import type {
+    ConversationSummary,
+    VendorSummary,
+} from "@/lib/types";
 
 export const metadata: Metadata = {
     title: "Messages",
@@ -13,8 +20,8 @@ export default async function OwnerMessagesPage({ searchParams }: { searchParams
     const vendorId = parseVendorParam((await searchParams).vendor);
     if (vendorId === null) redirect("/vendors/dashboard");
     const [vendor, conversations] = await Promise.all([
-        getVendorSummary(vendorId),
-        apiGet<ConversationSummary[]>(`/vendors/${vendorId}/conversations`),
+        authenticatedApiGet<VendorSummary>(`/vendors/${vendorId}/summary`),
+        authenticatedApiGet<ConversationSummary[]>(`/vendors/${vendorId}/conversations`),
     ]);
     if (!vendor) notFound();
 
