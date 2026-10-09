@@ -91,6 +91,7 @@ export function PhoneVerificationForm({
         const result = await requestVerification({
             phone,
             purpose: "login",
+            expectedRole: audience,
         });
 
         setBusy(false);
@@ -116,6 +117,7 @@ export function PhoneVerificationForm({
             phone,
             purpose: "login",
             code,
+            expectedRole: audience,
         });
 
         setBusy(false);

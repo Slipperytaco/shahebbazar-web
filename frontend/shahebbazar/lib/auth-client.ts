@@ -36,16 +36,16 @@ type VerifyCodeResult =
         ok: false;
         error: string;
     };
-    
-    type RegisterCustomerResult =
+
+type RegisterCustomerResult =
     | {
-          ok: true;
-          user: AuthUser;
-      }
+        ok: true;
+        user: AuthUser;
+    }
     | {
-          ok: false;
-          error: string;
-      };
+        ok: false;
+        error: string;
+    };
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
     return response
@@ -65,6 +65,7 @@ function errorFrom(
 export async function requestVerification(input: {
     phone: string;
     purpose: VerificationPurpose;
+    expectedRole?: "customer" | "vendor";
 }): Promise<RequestVerificationResult> {
     try {
         const response = await fetch(
@@ -113,6 +114,7 @@ export async function verifyCode(input: {
     phone: string;
     purpose: VerificationPurpose;
     code: string;
+    expectedRole?: "customer" | "vendor";
 }): Promise<VerifyCodeResult> {
     try {
         const response = await fetch(

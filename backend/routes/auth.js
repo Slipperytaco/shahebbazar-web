@@ -17,6 +17,10 @@ const ALLOWED_PURPOSES = new Set([
     "recover",
     "verify"
 ]);
+const LOGIN_ROLES = new Set([
+    "customer",
+    "vendor",
+]);
 
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_REQUEST_LIMIT = 3;
@@ -26,6 +30,7 @@ const OTP_ATTEMPT_LIMIT = 5;
 const SESSION_DURATION_DAYS = 7;
 const SESSION_DURATION_MS =
     SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000;
+
 
 // Creates a one-way hash using the code and a private server secret.
 function hashVerificationCode({ phone, purpose, code }) {
@@ -81,22 +86,73 @@ function hashesMatch(first, second) {
 router.post("/request-verification", async (req, res) => {
     const phone = normalisePhone(req.body?.phone);
     const purpose = req.body?.purpose;
+    const expectedRole = req.body?.expectedRole;
 
     if (!phone) {
         return res.status(400).json({
             success: false,
-            error: "Enter a valid phone number."
+            error: "Enter a valid phone number.",
         });
     }
 
     if (!ALLOWED_PURPOSES.has(purpose)) {
         return res.status(400).json({
             success: false,
-            error: "Invalid verification purpose."
+            error: "Invalid verification purpose.",
+        });
+    }
+
+    if (
+        purpose === "login" &&
+        !LOGIN_ROLES.has(expectedRole)
+    ) {
+        return res.status(400).json({
+            success: false,
+            error: "Choose a valid account type.",
         });
     }
 
     try {
+        /*
+         * For login requests, confirm that the account exists and
+         * belongs to the selected portal before generating an OTP.
+         */
+        if (purpose === "login") {
+            const userResult = await pool.query(
+                `SELECT
+                    user_role,
+                    user_status
+                 FROM users
+                 WHERE user_phone = $1
+                 LIMIT 1`,
+                [phone]
+            );
+
+            if (
+                userResult.rowCount === 0 ||
+                userResult.rows[0].user_status !== "active"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    error:
+                        "No active account is registered with this phone number.",
+                });
+            }
+
+            const actualRole =
+                userResult.rows[0].user_role;
+
+            if (actualRole !== expectedRole) {
+                return res.status(403).json({
+                    success: false,
+                    error:
+                        expectedRole === "customer"
+                            ? "This phone number belongs to a business account. Use Business owner login."
+                            : "This phone number belongs to a customer account. Use Customer login.",
+                });
+            }
+        }
+
         const recentRequests = await pool.query(
             `SELECT COUNT(*)::int AS request_count
              FROM otp_codes
@@ -107,7 +163,7 @@ router.post("/request-verification", async (req, res) => {
             [
                 phone,
                 purpose,
-                OTP_REQUEST_WINDOW_MINUTES
+                OTP_REQUEST_WINDOW_MINUTES,
             ]
         );
 
@@ -119,7 +175,7 @@ router.post("/request-verification", async (req, res) => {
                 success: false,
                 error:
                     "Too many verification requests. " +
-                    "Please try again later."
+                    "Please try again later.",
             });
         }
 
@@ -131,7 +187,7 @@ router.post("/request-verification", async (req, res) => {
         const codeHash = hashVerificationCode({
             phone,
             purpose,
-            code
+            code,
         });
 
         await pool.query(
@@ -154,14 +210,14 @@ router.post("/request-verification", async (req, res) => {
                 codeHash,
                 purpose,
                 OTP_EXPIRY_MINUTES,
-                req.ip || null
+                req.ip || null,
             ]
         );
 
         if (
             process.env.NODE_ENV !== "production" &&
             process.env.MOCK_VERIFICATION_DELIVERY ===
-            "console"
+                "console"
         ) {
             console.log("");
             console.log(
@@ -179,7 +235,7 @@ router.post("/request-verification", async (req, res) => {
         return res.status(201).json({
             success: true,
             message:
-                "A verification code has been generated."
+                "A verification code has been generated.",
         });
     } catch (error) {
         console.error(
@@ -190,7 +246,7 @@ router.post("/request-verification", async (req, res) => {
         return res.status(500).json({
             success: false,
             error:
-                "Unable to generate a verification code."
+                "Unable to generate a verification code.",
         });
     }
 });
@@ -198,6 +254,7 @@ router.post("/request-verification", async (req, res) => {
 router.post("/verify", async (req, res) => {
     const phone = normalisePhone(req.body?.phone);
     const purpose = req.body?.purpose;
+    const expectedRole = req.body?.expectedRole;
     const code =
         typeof req.body?.code === "string"
             ? req.body.code.trim()
@@ -214,6 +271,16 @@ router.post("/verify", async (req, res) => {
         return res.status(400).json({
             success: false,
             error: "Invalid verification purpose.",
+        });
+    }
+
+    if (
+        purpose === "login" &&
+        !LOGIN_ROLES.has(expectedRole)
+    ) {
+        return res.status(400).json({
+            success: false,
+            error: "Choose a valid account type.",
         });
     }
 
@@ -356,6 +423,17 @@ router.post("/verify", async (req, res) => {
                 error: "This account is not available.",
             });
         }
+        if (user.user_role !== expectedRole) {
+            await client.query("ROLLBACK");
+
+            return res.status(403).json({
+                success: false,
+                error:
+                    expectedRole === "customer"
+                        ? "This phone number belongs to a business account. Use Business owner login."
+                        : "This phone number belongs to a customer account. Use Customer login.",
+            });
+        }
 
         await client.query(
             `UPDATE otp_codes
@@ -457,7 +535,7 @@ router.post("/register/customer", async (req, res) => {
 
     const email =
         typeof req.body?.email === "string" &&
-        req.body.email.trim()
+            req.body.email.trim()
             ? req.body.email.trim().toLowerCase()
             : null;
 
